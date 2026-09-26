@@ -4,12 +4,23 @@ expression: wb.transcript
 ---
 $ wb wait --timeout 20
 turn: 3, agent's turn
-message: "make the queue async"
-changes[1] (since seq 2):
-  4 t2 human: relabeled n1 "Checkout"
-counts: 1 node, 0 edges, 0 groups, 0 notes, 0 annotations
-nodes[1]{id,kind,label,by}:
+message: "is this idempotent?"
+pointing at: n2 "CreatePayment"
+marks[1] new this turn:
+  a1: human circled n2 "CreatePayment": "retries?"
+changes[3] (since seq 3):
+  5 t2 human: relabeled n1 "Checkout"
+  6 t2 human: drew a1 circling n2
+  7 t2 human: commented on a1: "retries?"
+counts: 2 nodes, 0 edges, 0 groups, 0 notes, 1 annotation
+nodes[2]{id,kind,label,by}:
   n1,service,Checkout,agent
+  n2,service,CreatePayment,agent
+annotations[1]:
+  a1: human circled n2 "CreatePayment": "retries?"
+help[2]:
+  wb say "<reply>"
+  wb wait
 [exit 0]
 
 $ wb
@@ -17,8 +28,8 @@ bin: [bin]
 description: Shared whiteboard where you and a human design together
 board: b1 "Turns"
 turn: 3, agent's turn
-counts: 1 node, 0 edges, 0 groups, 0 notes, 0 annotations
-last: 5 t2 human: passed the turn: "make the queue async"
+counts: 2 nodes, 0 edges, 0 groups, 0 notes, 1 annotation
+last: 8 t2 human: passed the turn: "is this idempotent?" (pointing at n2)
 help[2]:
   wb look
   wb add <kind> "<label>" [--right-of <id>]

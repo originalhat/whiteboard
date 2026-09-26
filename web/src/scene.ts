@@ -1,9 +1,11 @@
-import { type Board, type BoardNode, NODE_HEIGHT, NODE_WIDTH } from "./model";
+import { type Board, type BoardAnnotation, type BoardNode, NODE_HEIGHT, NODE_WIDTH } from "./model";
 
 export const AGENT_COLOR = "#1971c2";
 export const HUMAN_COLOR = "#1e1e1e";
 const QUIET_COLOR = "#868e96";
 const NOTE_FILL = "#fff3bf";
+export const RECENT_FILL = "#e7f5ff";
+const RECENT_STROKE_WIDTH = 3;
 const GROUP_PADDING = 24;
 const GROUP_LABEL_SPACE = 28;
 const NODE_FONT_SIZE = 16;
@@ -12,9 +14,9 @@ const EDGE_FONT_SIZE = 14;
 export type Skeleton = { id: string; type: string } & Record<string, unknown>;
 
 /** The board as Excalidraw element skeletons. Ids match the board's, so edits map straight back. */
-export function toSkeletons(board: Board): Skeleton[] {
+export function toSkeletons(board: Board, recent: Set<string> = new Set()): Skeleton[] {
   const nodes = Object.values(board.nodes);
-  return [
+  const skeletons: Skeleton[] = [
     ...Object.values(board.groups).flatMap((group) => groupFrame(board, group.id)),
     ...nodes.map(shape),
     ...Object.values(board.edges).map((edge) => {
@@ -29,7 +31,57 @@ export function toSkeletons(board: Board): Skeleton[] {
       };
     }),
     ...nodes.flatMap((node) => noteLink(board, node)),
+    ...Object.values(board.annotations).map(markStroke),
   ];
+  return skeletons.map((s) => (recent.has(s.id) ? standOut(s) : s));
+}
+
+function standOut(skeleton: Skeleton): Skeleton {
+  const fill = skeleton.backgroundColor === "transparent" ? { backgroundColor: RECENT_FILL, fillStyle: "solid" } : {};
+  return { ...skeleton, ...fill, strokeWidth: RECENT_STROKE_WIDTH };
+}
+
+/**
+ * A complete Excalidraw freedraw element: the skeleton converter passes these through untouched.
+ * Excalidraw only records pressure per point, so a missing value falls back to a medium press.
+ */
+function markStroke(mark: BoardAnnotation): Skeleton {
+  const [x0, y0] = mark.stroke[0] ?? [0, 0];
+  const points = mark.stroke.map(([x, y]) => [x - x0, y - y0]);
+  const xs = points.map(([x]) => x);
+  const ys = points.map(([, y]) => y);
+  return {
+    id: mark.id,
+    type: "freedraw",
+    x: x0,
+    y: y0,
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+    points,
+    pressures: mark.stroke.map((p) => p[3] ?? 0.5),
+    simulatePressure: false,
+    lastCommittedPoint: null,
+    strokeColor: colorOf(mark.by),
+    backgroundColor: "transparent",
+    fillStyle: "solid",
+    strokeWidth: 2,
+    strokeStyle: "solid",
+    roughness: 1,
+    opacity: 100,
+    angle: 0,
+    roundness: null,
+    seed: 1,
+    version: 1,
+    versionNonce: 1,
+    index: null,
+    isDeleted: false,
+    groupIds: [],
+    frameId: null,
+    boundElements: null,
+    updated: 1,
+    link: null,
+    locked: false,
+  };
 }
 
 function colorOf(by: string) {

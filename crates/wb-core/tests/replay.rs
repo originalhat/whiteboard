@@ -164,11 +164,18 @@ fn events_must_arrive_in_sequence() {
 fn passing_the_turn_hands_it_to_the_other_side_and_starts_a_new_turn() {
     let (board, events) = build(vec![
         (Actor::Agent, node(1, "A")),
-        (Actor::Agent, Change::TurnPassed { message: None }),
+        (
+            Actor::Agent,
+            Change::TurnPassed {
+                message: None,
+                pointing_at: vec![],
+            },
+        ),
         (
             Actor::Human,
             Change::TurnPassed {
                 message: Some("make it async".into()),
+                pointing_at: vec![],
             },
         ),
         (Actor::Agent, node(2, "B")),
@@ -183,7 +190,13 @@ fn passing_the_turn_hands_it_to_the_other_side_and_starts_a_new_turn() {
 
 #[test]
 fn only_the_side_holding_the_turn_can_pass_it() {
-    let result = build(vec![(Actor::Human, Change::TurnPassed { message: None })]);
+    let result = build(vec![(
+        Actor::Human,
+        Change::TurnPassed {
+            message: None,
+            pointing_at: vec![],
+        },
+    )]);
 
     assert_eq!(result.unwrap_err(), Error::NotYourTurn(Actor::Human));
 }

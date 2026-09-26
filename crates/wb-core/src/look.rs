@@ -65,7 +65,7 @@ pub fn board(board: &Board) -> String {
     if !board.annotations.is_empty() {
         writeln!(out, "annotations[{}]:", board.annotations.len()).unwrap();
         for annotation in board.annotations.values() {
-            writeln!(out, "  {}", resolve(board, annotation)).unwrap();
+            writeln!(out, "  {}", mark(board, annotation)).unwrap();
         }
     }
     out
@@ -118,12 +118,50 @@ pub fn describe(change: &Change) -> String {
             let members: Vec<String> = members.iter().map(|m| m.to_string()).collect();
             format!("grouped {id} {}: {}", quoted(label), members.join(" "))
         }
-        Change::AnnotationAdded { id, .. } => format!("drew {id}"),
+        Change::AnnotationAdded { id, targets, .. } => {
+            let marks: Vec<String> = targets
+                .iter()
+                .map(|t| {
+                    let items: Vec<String> = t.items.iter().map(|i| i.to_string()).collect();
+                    format!("{} {}", relation_ing(t.relation), items.join(" and "))
+                })
+                .collect();
+            if marks.is_empty() {
+                format!("drew {id}")
+            } else {
+                format!("drew {id} {}", marks.join("; "))
+            }
+        }
+        Change::ItemRelabeled {
+            id: id @ ItemId::Annotation(_),
+            label,
+        } => format!("commented on {id}: {}", quoted(label)),
         Change::ItemRelabeled { id, label } => format!("relabeled {id} {}", quoted(label)),
         Change::ItemDeleted { id } => format!("deleted {id}"),
         Change::MessageSent { text } => format!("said {}", quoted(text)),
-        Change::TurnPassed { message: None } => "passed the turn".into(),
-        Change::TurnPassed { message: Some(m) } => format!("passed the turn: {}", quoted(m)),
+        Change::TurnPassed {
+            message,
+            pointing_at,
+        } => {
+            let message = message
+                .as_ref()
+                .map_or(String::new(), |m| format!(": {}", quoted(m)));
+            let pointing = if pointing_at.is_empty() {
+                String::new()
+            } else {
+                let ids: Vec<String> = pointing_at.iter().map(|i| i.to_string()).collect();
+                format!(" (pointing at {})", ids.join(" "))
+            };
+            format!("passed the turn{message}{pointing}")
+        }
+    }
+}
+
+fn relation_ing(relation: Relation) -> &'static str {
+    match relation {
+        Relation::Encloses => "circling",
+        Relation::Connects => "connecting",
+        Relation::Strikes => "striking through",
     }
 }
 
@@ -161,7 +199,8 @@ fn table(out: &mut String, name: &str, fields: &str, rows: impl Iterator<Item = 
     }
 }
 
-fn resolve(board: &Board, annotation: &Annotation) -> String {
+/// A mark in words, e.g. `a3: human circled n2 "Order Service": "this needs to be async"`.
+pub fn mark(board: &Board, annotation: &Annotation) -> String {
     let who = annotation.by.as_str();
     let marks: Vec<String> = annotation
         .targets
@@ -188,7 +227,8 @@ fn resolve(board: &Board, annotation: &Annotation) -> String {
     format!("{}: {who} {what}{text}", annotation.id)
 }
 
-fn item(board: &Board, id: ItemId) -> String {
+/// An item's id with its label, or a note that it's gone.
+pub fn item(board: &Board, id: ItemId) -> String {
     if !board.contains(id) {
         return format!("{id} (deleted)");
     }

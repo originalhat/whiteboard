@@ -330,6 +330,13 @@
                     "string",
                     "null"
                   ]
+                },
+                "pointing_at": {
+                  "description": "What the human had selected when they handed over: what \"this\" means in the message.",
+                  "items": {
+                    "$ref": "#/$defs/ItemId"
+                  },
+                  "type": "array"
                 }
               },
               "type": "object"

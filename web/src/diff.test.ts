@@ -9,7 +9,7 @@ const board: Board = {
   },
   edges: { e1: { id: "e1", from: "n1", to: "n2", label: "calls", by: "agent" } },
   groups: {},
-  annotations: {},
+  annotations: { a1: { id: "a1", stroke: [[0, 0, 0]], zoom: 1, targets: [], by: "human" } },
   turn: 1,
   holder: "human",
   last_seq: 3,
@@ -87,6 +87,31 @@ describe("humanOps", () => {
     expect(humanOps(drawn, board, new Set())).toEqual([
       { op: "note", client_id: "tmpN", text: "what about retries?", at: { x: 50, y: 400 } },
     ]);
+  });
+
+  it("sends a pen stroke as a mark, in board coordinates, with the zoom it was drawn at", () => {
+    const drawn = [
+      ...scene,
+      { id: "tmpS", type: "freedraw", x: 100, y: 50, isDeleted: false, points: [[0, 0], [10, 5], [20, 0]] as [number, number][], pressures: [0.2, 0.4, 0.6], simulatePressure: false },
+    ];
+    expect(humanOps(drawn, board, new Set(), 2)).toEqual([
+      { op: "annotate", client_id: "tmpS", zoom: 2, stroke: [[100, 50, 0, 0.2], [110, 55, 0, 0.4], [120, 50, 0, 0.6]] },
+    ]);
+  });
+
+  it("leaves pressure out when Excalidraw only simulated it", () => {
+    const drawn = [...scene, { id: "tmpS", type: "freedraw", x: 0, y: 0, isDeleted: false, points: [[0, 0], [10, 10]] as [number, number][], pressures: [], simulatePressure: true }];
+    expect(humanOps(drawn, board, new Set())).toMatchObject([{ stroke: [[0, 0, 0], [10, 10, 0]] }]);
+  });
+
+  it("ignores a pen tap too small to mean anything at the zoom it was made", () => {
+    const tap = { id: "tmpS", type: "freedraw", x: 0, y: 0, isDeleted: false, points: [[0, 0], [2, 1]] as [number, number][] };
+    expect(ops([...scene, tap])).toEqual([]);
+    expect(humanOps([...scene, tap], board, new Set(), 4)).toHaveLength(1);
+  });
+
+  it("turns an erased mark into a delete", () => {
+    expect(ops([...scene, { id: "a1", type: "freedraw", x: 0, y: 0, isDeleted: true }])).toEqual([{ op: "delete", id: "a1" }]);
   });
 
   it("doesn't resend an edit that is still on its way", () => {

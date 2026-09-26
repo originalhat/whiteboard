@@ -232,7 +232,13 @@ async fn the_human_can_only_hand_over_a_turn_they_hold() {
     )
     .await;
     let mut store = Store::open(&f.db).unwrap();
-    let pass = Draft::new(Actor::Agent, Change::TurnPassed { message: None });
+    let pass = Draft::new(
+        Actor::Agent,
+        Change::TurnPassed {
+            message: None,
+            pointing_at: vec![],
+        },
+    );
     store.append("b1", pass, 0).unwrap();
     let (ok, _) = op(
         &f,
@@ -314,4 +320,110 @@ async fn unknown_api_routes_and_files_are_not_found() {
 
     assert_eq!(api, StatusCode::NOT_FOUND);
     assert_eq!(file, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_stroke_drawn_on_the_canvas_is_read_as_a_mark_on_the_board() {
+    let f = fixture();
+    agent_adds(&f.db, 1, "CreatePayment");
+    let circle: Vec<Value> = (0..=40)
+        .map(|i| {
+            let a = std::f64::consts::TAU * i as f64 / 40.0;
+            json!([
+                100.0 + 160.0 * a.cos(),
+                40.0 + 90.0 * a.sin(),
+                i as f64 * 16.0,
+                0.5
+            ])
+        })
+        .collect();
+
+    let (status, reply) = op(
+        &f,
+        json!({"op": "annotate", "client_id": "s1", "stroke": circle, "zoom": 1.0}),
+    )
+    .await;
+    let (_, _) = op(
+        &f,
+        json!({"op": "relabel", "client_id": "s2", "id": "a1", "label": "is this idempotent?"}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert_eq!(reply["event"]["kind"], "annotation.added");
+    assert_eq!(
+        reply["event"]["payload"]["targets"],
+        json!([{"relation": "encloses", "items": ["n1"]}])
+    );
+    let board = Store::open(&f.db).unwrap().load("b1").unwrap();
+    let text = wb_core::look::board(&board);
+    assert!(
+        text.contains("a1: human circled n1 \"CreatePayment\": \"is this idempotent?\""),
+        "{text}"
+    );
+}
+
+#[tokio::test]
+async fn handing_over_records_what_the_human_had_selected() {
+    let f = fixture();
+    agent_adds(&f.db, 1, "CreatePayment");
+    let mut store = Store::open(&f.db).unwrap();
+    store
+        .append(
+            "b1",
+            Draft::new(
+                Actor::Agent,
+                Change::TurnPassed {
+                    message: None,
+                    pointing_at: vec![],
+                },
+            ),
+            0,
+        )
+        .unwrap();
+
+    let (status, reply) = op(
+        &f,
+        json!({"op": "pass_turn", "client_id": "c1", "message": "is this idempotent?", "pointing_at": ["n1"]}),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert_eq!(reply["event"]["payload"]["pointing_at"], json!(["n1"]));
+}
+
+#[tokio::test]
+async fn the_snapshot_says_what_the_agent_changed_in_its_latest_turn() {
+    let f = fixture();
+    agent_adds(&f.db, 1, "A");
+    let (_, first_turn) = get(&f.router, &format!("/api/boards/b1/state?t={}", f.token)).await;
+    let mut store = Store::open(&f.db).unwrap();
+    let pass = |actor| {
+        Draft::new(
+            actor,
+            Change::TurnPassed {
+                message: None,
+                pointing_at: vec![],
+            },
+        )
+    };
+    store.append("b1", pass(Actor::Agent), 0).unwrap();
+    store.append("b1", pass(Actor::Human), 0).unwrap();
+    agent_adds(&f.db, 2, "B");
+    let relabel = Change::ItemRelabeled {
+        id: wb_core::ItemId::Node(NodeId(1)),
+        label: "A2".into(),
+    };
+    store
+        .append("b1", Draft::new(Actor::Agent, relabel), 0)
+        .unwrap();
+
+    let (_, later) = get(&f.router, &format!("/api/boards/b1/state?t={}", f.token)).await;
+
+    assert_eq!(
+        first_turn["agent_turn_items"],
+        json!([]),
+        "the first sketch is all new, so nothing stands out"
+    );
+    assert_eq!(later["agent_turn_items"], json!(["n1", "n2"]));
 }

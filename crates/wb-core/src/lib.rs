@@ -5,6 +5,7 @@ mod event;
 mod id;
 pub mod layout;
 pub mod look;
+pub mod marks;
 mod model;
 mod replay;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type Board, NODE_HEIGHT, NODE_WIDTH } from "./model";
-import { AGENT_COLOR, HUMAN_COLOR, toSkeletons } from "./scene";
+import { AGENT_COLOR, HUMAN_COLOR, RECENT_FILL, toSkeletons } from "./scene";
 
 function board(partial: Partial<Board>): Board {
   return { nodes: {}, edges: {}, groups: {}, annotations: {}, turn: 1, holder: "agent", last_seq: 0, ...partial };
@@ -14,6 +14,19 @@ const sample = board({
   },
   edges: { e1: { id: "e1", from: "n1", to: "n2", label: "writes", by: "agent" } },
   groups: { g1: { id: "g1", label: "Orders", members: ["n1", "n2"], by: "agent" } },
+  annotations: {
+    a1: {
+      id: "a1",
+      stroke: [
+        [10, 20, 0, 0.5],
+        [40, 60, 16, 0.6],
+        [15, 90, 32],
+      ],
+      zoom: 1,
+      targets: [],
+      by: "human",
+    },
+  },
 });
 
 const byId = (id: string) => toSkeletons(sample).find((s) => s.id === id) as any;
@@ -33,6 +46,27 @@ describe("toSkeletons", () => {
   it("uses text small enough for real labels to fit", () => {
     expect(byId("n1").label.fontSize).toBeLessThanOrEqual(16);
     expect(byId("e1").label.fontSize).toBeLessThan(byId("n1").label.fontSize);
+  });
+
+  it("draws the human's marks as the strokes they drew, on top of everything", () => {
+    const skeletons = toSkeletons(sample);
+    const mark = byId("a1");
+    expect(mark).toMatchObject({ type: "freedraw", x: 10, y: 20, width: 30, height: 70, strokeColor: HUMAN_COLOR });
+    expect(mark.points).toEqual([
+      [0, 0],
+      [30, 40],
+      [5, 70],
+    ]);
+    expect(mark.pressures).toEqual([0.5, 0.6, 0.5]);
+    expect(skeletons.at(-1)?.id).toBe("a1");
+  });
+
+  it("shades what the agent changed in its latest turn", () => {
+    const skeletons = toSkeletons(sample, new Set(["n1", "e1"]));
+    const find = (id: string) => skeletons.find((s) => s.id === id) as any;
+    expect(find("n1")).toMatchObject({ backgroundColor: RECENT_FILL, strokeWidth: 3 });
+    expect(find("e1")).toMatchObject({ strokeWidth: 3 });
+    expect(find("n2").strokeWidth).toBeUndefined();
   });
 
   it("colours the agent's marks differently from the human's", () => {

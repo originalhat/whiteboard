@@ -312,3 +312,22 @@ fn deleting_twice_says_it_is_already_gone_but_unknown_ids_are_errors() {
         Error::NotFound(ItemId::Node(NodeId(99)))
     );
 }
+
+#[test]
+fn a_note_sits_on_a_diagonal_so_the_lanes_beside_its_item_stay_free() {
+    let mut board = Board::default();
+    let a = add(&mut board, "A", Placement::Auto);
+    apply(
+        &mut board,
+        Note {
+            text: "why?".into(),
+            on: Some(n(a)),
+        },
+    );
+
+    let below = add(&mut board, "Below", Placement::Below(n(a)));
+    let right = add(&mut board, "Right", Placement::RightOf(n(a)));
+
+    assert_eq!(at(&board, below), Point::new(0.0, wb_core::layout::PITCH_Y));
+    assert_eq!(at(&board, right), Point::new(wb_core::layout::PITCH_X, 0.0));
+}

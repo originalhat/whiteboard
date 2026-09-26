@@ -102,12 +102,18 @@ impl Board {
                 {
                     return Ok(Same(Unchanged::Exists(note.id.into())));
                 }
-                let placement = on.map_or(Placement::Auto, Placement::Near);
+                let at = match on {
+                    Some(target) => {
+                        let occupied = self.occupied(None);
+                        layout::place(&occupied, Spot::Aside(self.anchor(*target)?))
+                    }
+                    None => self.position(Placement::Auto, None)?,
+                };
                 Ok(Changed(Change::NodeAdded {
                     id: self.next_node_id(),
                     kind: NodeKind::Note,
                     label: text.clone(),
-                    at: self.position(placement, None)?,
+                    at,
                     attached_to: *on,
                 }))
             }
@@ -189,13 +195,16 @@ impl Board {
         }
     }
 
-    fn position(&self, placement: Placement, moving: Option<NodeId>) -> Result<Point, Error> {
-        let occupied: Vec<Point> = self
-            .nodes
+    fn occupied(&self, moving: Option<NodeId>) -> Vec<Point> {
+        self.nodes
             .values()
             .filter(|n| Some(n.id) != moving)
             .map(|n| n.at)
-            .collect();
+            .collect()
+    }
+
+    fn position(&self, placement: Placement, moving: Option<NodeId>) -> Result<Point, Error> {
+        let occupied = self.occupied(moving);
         let toward = |id, dx, dy| -> Result<Spot, Error> {
             Ok(Spot::Toward {
                 from: self.anchor(id)?,

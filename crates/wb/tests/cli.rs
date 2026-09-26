@@ -2,7 +2,9 @@ use std::path::Path;
 
 use assert_cmd::Command;
 use tempfile::TempDir;
-use wb_core::{Actor, Change, Draft, Intent, ItemId, NodeId, NodeKind, Outcome, Placement};
+use wb_core::{
+    Actor, Change, Draft, Intent, ItemId, NodeId, NodeKind, Outcome, Placement, StrokePoint,
+};
 use wb_store::Store;
 
 struct Session {
@@ -83,12 +85,53 @@ fn human(home: &Path, intent: Intent) {
 }
 
 fn human_hands_over(home: &Path, message: &str) {
+    human_hands_over_pointing(home, message, vec![]);
+}
+
+fn human_hands_over_pointing(home: &Path, message: &str, pointing_at: Vec<ItemId>) {
     let mut store = Store::open(&home.join("wb.db")).unwrap();
     let change = Change::TurnPassed {
         message: Some(message.into()),
+        pointing_at,
     };
     store
         .append("b1", Draft::new(Actor::Human, change), 0)
+        .unwrap();
+}
+
+/// Draws a loop around a node on the canvas, as the human, and comments on it.
+fn human_circles(home: &Path, id: NodeId, comment: &str) {
+    let mut store = Store::open(&home.join("wb.db")).unwrap();
+    let board = store.load("b1").unwrap();
+    let at = board.nodes[&id].at;
+    let stroke: Vec<StrokePoint> = (0..=40)
+        .map(|i| {
+            let a = std::f64::consts::TAU * i as f64 / 40.0;
+            StrokePoint {
+                x: at.x + 100.0 + 160.0 * a.cos(),
+                y: at.y + 40.0 + 90.0 * a.sin(),
+                t: i as f64 * 16.0,
+                pressure: None,
+            }
+        })
+        .collect();
+    let mark = board.next_annotation_id();
+    let change = Change::AnnotationAdded {
+        id: mark,
+        targets: wb_core::marks::resolve(&board, &stroke, 1.0),
+        stroke,
+        zoom: 1.0,
+        text: None,
+    };
+    store
+        .append("b1", Draft::new(Actor::Human, change), 0)
+        .unwrap();
+    let comment = Change::ItemRelabeled {
+        id: mark.into(),
+        label: comment.into(),
+    };
+    store
+        .append("b1", Draft::new(Actor::Human, comment), 0)
         .unwrap();
 }
 
@@ -252,6 +295,7 @@ fn waiting_hands_the_turn_over_and_returns_the_humans_reply() {
     let mut wb = Session::new();
     wb.run(&["new", "Turns"]);
     wb.run(&["add", "service", "Order Service"]);
+    wb.run(&["add", "service", "CreatePayment", "--right-of", "n1"]);
     wb.run(&["say", "Here's my first take"]);
     wb.transcript.clear();
 
@@ -265,7 +309,8 @@ fn waiting_hands_the_turn_over_and_returns_the_humans_reply() {
                 label: "Checkout".into(),
             },
         );
-        human_hands_over(&home, "make the queue async");
+        human_circles(&home, NodeId(2), "retries?");
+        human_hands_over_pointing(&home, "is this idempotent?", vec![ItemId::Node(NodeId(2))]);
     });
     wb.run(&["wait", "--timeout", "20"]);
     reply.join().unwrap();

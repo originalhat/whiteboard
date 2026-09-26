@@ -283,6 +283,33 @@ Test first, testing behavior. Most of the system can be tested without a browser
 A fixture set of boards and annotations with the interpretation we expect makes "does the agent
 understand my marks" measurable. Browser end-to-end tests come in M1.
 
+## Future ideas
+
+### Altitude slider
+
+A slider that sets how much detail the board shows. At the top, a handful of boxes for the whole
+system. Moving it down reveals the pieces inside each box, down to classes and methods (roughly the
+C4 levels: context, containers, components, code).
+
+- Each node gets an optional altitude. A node can also sit inside a parent node, which it expands
+  into at lower altitudes, so a group can collapse into a single box.
+- The agent sketches high first, then adds detail below a box when asked ("zoom into CreatePayment").
+  `wb look --altitude N` returns only what's visible at that level, which also keeps the agent's
+  context small on big boards.
+- Marks and notes belong to the altitude they were made at.
+- This is additive to the `wb/0.1` format (optional fields), so it doesn't need a new version.
+
+### Faster turns
+
+Round trips should feel conversational. Ideas to try:
+
+- Think hard on the opening sketch (reading the ticket and code), then drop to medium or low effort
+  for follow-up turns, which are usually small corrections. The skill could hand follow-ups to a
+  faster subagent, or tell the agent which effort to use per turn.
+- Measure before tuning. The log already has timestamps, so a `wb stats` could report, per turn,
+  time from the human's handover to the agent's first edit and to its reply.
+- Keep edits streaming so the board moves within seconds even when the full answer takes longer.
+
 ## Deferred
 
 - Remote access from an iPad or phone (v2; see its section for what v1 does to prepare)

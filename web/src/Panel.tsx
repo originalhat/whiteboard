@@ -7,11 +7,12 @@ interface Props {
   presence: Presence | null;
   online: boolean;
   error: string | null;
+  recentCount: number;
   onDismissError(): void;
   onHandOver(message: string | undefined): Promise<boolean>;
 }
 
-export function Panel({ snapshot, messages, presence, online, error, onDismissError, onHandOver }: Props) {
+export function Panel({ snapshot, messages, presence, online, error, recentCount, onDismissError, onHandOver }: Props) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const list = useRef<HTMLOListElement>(null);
@@ -57,6 +58,11 @@ export function Panel({ snapshot, messages, presence, online, error, onDismissEr
       </div>
       {!yours && presence && <div className="status">{presence.text}</div>}
       {!online && <div className="offline">Reconnecting…</div>}
+      {recentCount > 0 && (
+        <div className="legend">
+          <span className="swatch" /> Shaded: {recentCount === 1 ? "1 thing" : `${recentCount} things`} the agent changed last turn
+        </div>
+      )}
       <ol className="messages" ref={list}>
         {messages.length === 0 && <li className="empty">No messages yet.</li>}
         {messages.map((m) => (
@@ -75,7 +81,11 @@ export function Panel({ snapshot, messages, presence, online, error, onDismissEr
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={yours ? "What should the agent look at?" : "You can keep drawing while the agent works"}
+          placeholder={
+            yours
+              ? "What should the agent look at? Circle things with the pen, or select them before handing over."
+              : "You can keep drawing while the agent works"
+          }
           rows={4}
         />
         <button type="submit" disabled={!yours || sending}>

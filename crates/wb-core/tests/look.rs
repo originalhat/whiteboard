@@ -213,10 +213,54 @@ fn describe_turns_each_change_into_a_short_phrase() {
         (
             Change::TurnPassed {
                 message: Some("make it async".into()),
+                pointing_at: vec![],
             },
             "passed the turn: \"make it async\"",
         ),
-        (Change::TurnPassed { message: None }, "passed the turn"),
+        (
+            Change::TurnPassed {
+                message: None,
+                pointing_at: vec![],
+            },
+            "passed the turn",
+        ),
+        (
+            Change::TurnPassed {
+                message: Some("is this idempotent?".into()),
+                pointing_at: vec![ItemId::Node(NodeId(5))],
+            },
+            "passed the turn: \"is this idempotent?\" (pointing at n5)",
+        ),
+        (
+            Change::AnnotationAdded {
+                id: AnnotationId(1),
+                stroke: vec![],
+                zoom: 1.0,
+                targets: vec![Target {
+                    relation: Relation::Encloses,
+                    items: vec![ItemId::Node(NodeId(5))],
+                }],
+                text: None,
+            },
+            "drew a1 circling n5",
+        ),
+        (
+            Change::AnnotationAdded {
+                id: AnnotationId(2),
+                stroke: vec![],
+                zoom: 1.0,
+                targets: vec![],
+                text: None,
+            },
+            "drew a2",
+        ),
+        (
+            Change::ItemRelabeled {
+                id: ItemId::Annotation(AnnotationId(1)),
+                label: "retries?".into(),
+            },
+            "commented on a1: \"retries?\"",
+        ),
     ];
 
     for (change, expected) in cases {

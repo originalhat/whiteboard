@@ -63,7 +63,10 @@ fn change_for(board: &Board, step: &Step, next_id: u32) -> Option<Change> {
         5 => Some(Change::ItemDeleted {
             id: pick(&items, step.a)?,
         }),
-        _ => Some(Change::TurnPassed { message: None }),
+        _ => Some(Change::TurnPassed {
+            message: None,
+            pointing_at: vec![],
+        }),
     }
 }
 

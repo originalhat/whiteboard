@@ -2,9 +2,10 @@ import { Excalidraw } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useEffect, useMemo, useState } from "react";
 import { type Location, follow, readLocation } from "./api";
+import { CommentBox, describeMark } from "./CommentBox";
 import type { Message, Presence, Snapshot, WbEvent } from "./model";
 import { Panel } from "./Panel";
-import { CanvasSync } from "./sync";
+import { CanvasSync, type NewMark } from "./sync";
 
 export function App() {
   const location = useMemo(readLocation, []);
@@ -25,9 +26,11 @@ function Canvas({ location }: { location: Location }) {
   const [presence, setPresence] = useState<Presence | null>(null);
   const [online, setOnline] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [newMark, setNewMark] = useState<NewMark | null>(null);
+  const [recentCount, setRecentCount] = useState(0);
   const fontsReady = useFonts(api);
   const sync = useMemo(
-    () => (api && fontsReady ? new CanvasSync(api, location, setError) : null),
+    () => (api && fontsReady ? new CanvasSync(api, location, setError, setNewMark, setRecentCount) : null),
     [api, fontsReady, location],
   );
 
@@ -38,7 +41,7 @@ function Canvas({ location }: { location: Location }) {
         setSnapshot(s);
         setMessages(s.messages);
         setPresence(s.presence);
-        sync.setBoard(s.board);
+        sync.setBoard(s.board, undefined, s.agent_turn_items);
       },
       change(event, board) {
         setSnapshot((prev) => prev && { ...prev, board });
@@ -58,6 +61,17 @@ function Canvas({ location }: { location: Location }) {
   return (
     <div className="app">
       <div className="canvas">
+        {newMark && snapshot && (
+          <CommentBox
+            mark={newMark}
+            describe={describeMark(snapshot.board, newMark.id)}
+            onSave={(text) => {
+              sync?.comment(newMark.id, text);
+              setNewMark(null);
+            }}
+            onClose={() => setNewMark(null)}
+          />
+        )}
         <Excalidraw
           excalidrawAPI={setApi}
           onChange={(elements, appState) => sync?.onChange(elements, appState)}
@@ -70,6 +84,7 @@ function Canvas({ location }: { location: Location }) {
         presence={presence}
         online={online}
         error={error}
+        recentCount={recentCount}
         onDismissError={() => setError(null)}
         onHandOver={(message) => sync?.passTurn(message) ?? Promise.resolve(false)}
       />

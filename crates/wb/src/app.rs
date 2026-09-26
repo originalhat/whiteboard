@@ -3,8 +3,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use wb_core::look::{self, cell, quoted};
 use wb_core::{
-    Actor, Board, BoardMeta, Change, Draft, Event, Intent, ItemId, NodeKind, Outcome, Placement,
-    Unchanged,
+    Actor, Annotation, Board, BoardMeta, Change, Draft, Event, Intent, ItemId, NodeKind, Outcome,
+    Placement, Unchanged,
 };
 use wb_store::{Error as StoreError, Store};
 
@@ -244,7 +244,13 @@ impl App {
             .iter()
             .any(|e| e.actor == Actor::Human && matches!(e.change, Change::TurnPassed { .. }));
         if board.holder == Actor::Agent && !unread_handover {
-            let pass = Draft::new(Actor::Agent, Change::TurnPassed { message: None });
+            let pass = Draft::new(
+                Actor::Agent,
+                Change::TurnPassed {
+                    message: None,
+                    pointing_at: vec![],
+                },
+            );
             self.store.append(&id, pass, now())?;
             self.store.set_presence(&id, None, now())?;
             board = self.store.load(&id)?;
@@ -264,23 +270,46 @@ impl App {
             }
         }
         let events = self.store.events(&id, since)?;
-        let message = events
+        let handover = events
             .iter()
             .rev()
             .find_map(|e| match (&e.actor, &e.change) {
-                (Actor::Human, Change::TurnPassed { message }) => Some(message.clone()),
+                (
+                    Actor::Human,
+                    Change::TurnPassed {
+                        message,
+                        pointing_at,
+                    },
+                ) => Some((message.clone(), pointing_at.clone())),
                 _ => None,
-            })
-            .flatten();
+            });
+        let (message, pointing_at) = handover.unwrap_or_default();
         let changes: Vec<&Event> = events
             .iter()
             .filter(|e| e.actor == Actor::Human && !matches!(e.change, Change::TurnPassed { .. }))
+            .collect();
+        let new_marks: Vec<&Annotation> = events
+            .iter()
+            .filter_map(|e| match &e.change {
+                Change::AnnotationAdded { id, .. } => board.annotations.get(id),
+                _ => None,
+            })
             .collect();
         let mut out = format!(
             "turn: {}, agent's turn\nmessage: {}\n",
             board.turn,
             message.as_deref().map_or("none".into(), quoted)
         );
+        if !pointing_at.is_empty() {
+            let items: Vec<String> = pointing_at.iter().map(|i| look::item(&board, *i)).collect();
+            out += &format!("pointing at: {}\n", items.join(", "));
+        }
+        if !new_marks.is_empty() {
+            out += &format!("marks[{}] new this turn:\n", new_marks.len());
+            for mark in &new_marks {
+                out += &format!("  {}\n", look::mark(&board, mark));
+            }
+        }
         if changes.is_empty() {
             out += "changes: none\n";
         } else {
@@ -291,6 +320,7 @@ impl App {
         }
         out += &format!("counts: {}\n", look::counts(&board));
         out += &look::board(&board);
+        out += &help_block(&["wb say \"<reply>\"", "wb wait"]);
         self.mark_seen(&id)?;
         Ok(out)
     }

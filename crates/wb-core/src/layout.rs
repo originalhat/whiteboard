@@ -12,7 +12,13 @@ const COLUMNS: usize = 4;
 pub(crate) enum Spot {
     Auto,
     Near(Point),
-    Toward { from: Point, dx: f64, dy: f64 },
+    /// Next to a point but off the straight lines through it, for things that annotate it.
+    Aside(Point),
+    Toward {
+        from: Point,
+        dx: f64,
+        dy: f64,
+    },
 }
 
 /// Two node positions are too close if their cells would touch.
@@ -37,6 +43,15 @@ pub(crate) fn place(occupied: &[Point], spot: Spot) -> Point {
             .find(free),
         Spot::Near(anchor) => (1..)
             .flat_map(ring)
+            .map(|(dx, dy)| cell(anchor, dx, dy))
+            .find(free),
+        Spot::Aside(anchor) => (1..)
+            .flat_map(|r| {
+                let (diagonal, straight): (Vec<_>, Vec<_>) = ring(r)
+                    .into_iter()
+                    .partition(|(dx, dy)| *dx != 0.0 && *dy != 0.0);
+                diagonal.into_iter().chain(straight)
+            })
             .map(|(dx, dy)| cell(anchor, dx, dy))
             .find(free),
     }

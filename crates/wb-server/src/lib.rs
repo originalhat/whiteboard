@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
-use wb_core::{Actor, Board, Change, Draft, ItemId, NodeId, NodeKind, Point};
+use wb_core::{Actor, Board, Change, Draft, ItemId, NodeId, NodeKind, Point, StrokePoint, marks};
 use wb_store::{Error as StoreError, Store};
 
 mod assets;
@@ -140,14 +140,19 @@ fn snapshot(
     board: &Board,
     presence: &Option<(String, i64)>,
 ) -> Result<Value, StoreError> {
-    let messages: Vec<Value> = store
+    let events: Vec<wb_core::Event> = store
         .events(id, 0)?
         .into_iter()
         .take_while(|e| e.seq <= board.last_seq)
+        .collect();
+    let messages: Vec<Value> = events
+        .iter()
         .filter_map(|e| {
             let text = match &e.change {
                 Change::MessageSent { text } => text.clone(),
-                Change::TurnPassed { message: Some(m) } => m.clone(),
+                Change::TurnPassed {
+                    message: Some(m), ..
+                } => m.clone(),
                 _ => return None,
             };
             Some(json!({ "seq": e.seq, "turn": e.turn, "actor": e.actor, "text": text }))
@@ -159,7 +164,28 @@ fn snapshot(
         "seq": board.last_seq,
         "presence": presence_json(presence),
         "messages": messages,
+        "agent_turn_items": agent_turn_items(board, &events),
     }))
+}
+
+/// What the agent added or changed in its most recent turn, so the canvas can show what's new.
+/// The first turn is the agent's opening sketch, where everything is new, so it counts for nothing.
+fn agent_turn_items(board: &Board, events: &[wb_core::Event]) -> Vec<ItemId> {
+    let turn = if board.holder == Actor::Agent {
+        board.turn
+    } else {
+        board.turn - 1
+    };
+    if turn <= 1 {
+        return Vec::new();
+    }
+    let items: std::collections::BTreeSet<ItemId> = events
+        .iter()
+        .filter(|e| e.actor == Actor::Agent && e.turn == turn)
+        .filter_map(|e| e.change.item())
+        .filter(|id| board.contains(*id))
+        .collect();
+    items.into_iter().collect()
 }
 
 fn presence_json(presence: &Option<(String, i64)>) -> Value {
@@ -283,9 +309,16 @@ enum Op {
         client_id: String,
         id: ItemId,
     },
+    Annotate {
+        client_id: String,
+        stroke: Vec<StrokePoint>,
+        zoom: f64,
+    },
     PassTurn {
         client_id: String,
         message: Option<String>,
+        #[serde(default)]
+        pointing_at: Vec<ItemId>,
     },
 }
 
@@ -343,7 +376,31 @@ impl Op {
                 label,
             } => (client_id, Change::ItemRelabeled { id, label }),
             Op::Delete { client_id, id } => (client_id, Change::ItemDeleted { id }),
-            Op::PassTurn { client_id, message } => (client_id, Change::TurnPassed { message }),
+            Op::Annotate {
+                client_id,
+                stroke,
+                zoom,
+            } => (
+                client_id,
+                Change::AnnotationAdded {
+                    id: board.next_annotation_id(),
+                    targets: marks::resolve(board, &stroke, zoom),
+                    stroke,
+                    zoom,
+                    text: None,
+                },
+            ),
+            Op::PassTurn {
+                client_id,
+                message,
+                pointing_at,
+            } => (
+                client_id,
+                Change::TurnPassed {
+                    message,
+                    pointing_at,
+                },
+            ),
         };
         let mut draft = Draft::new(Actor::Human, change);
         draft.client_id = Some(client_id);

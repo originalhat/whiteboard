@@ -30,11 +30,27 @@ export interface BoardGroup {
   by: Actor;
 }
 
+export type StrokePoint = [number, number, number] | [number, number, number, number];
+
+export interface Target {
+  relation: "encloses" | "connects" | "strikes";
+  items: string[];
+}
+
+export interface BoardAnnotation {
+  id: string;
+  stroke: StrokePoint[];
+  zoom: number;
+  targets: Target[];
+  text?: string;
+  by: Actor;
+}
+
 export interface Board {
   nodes: Record<string, BoardNode>;
   edges: Record<string, BoardEdge>;
   groups: Record<string, BoardGroup>;
-  annotations: Record<string, unknown>;
+  annotations: Record<string, BoardAnnotation>;
   turn: number;
   holder: Actor;
   last_seq: number;
@@ -58,6 +74,7 @@ export interface Snapshot {
   seq: number;
   presence: Presence | null;
   messages: Message[];
+  agent_turn_items: string[];
 }
 
 export interface WbEvent {
@@ -76,7 +93,8 @@ export type Op =
   | { op: "connect"; client_id: string; from: string; to: string; label?: string }
   | { op: "relabel"; client_id: string; id: string; label: string }
   | { op: "delete"; client_id: string; id: string }
-  | { op: "pass_turn"; client_id: string; message?: string };
+  | { op: "annotate"; client_id: string; stroke: StrokePoint[]; zoom: number }
+  | { op: "pass_turn"; client_id: string; message?: string; pointing_at?: string[] };
 
 export const NODE_WIDTH = 200;
 export const NODE_HEIGHT = 80;

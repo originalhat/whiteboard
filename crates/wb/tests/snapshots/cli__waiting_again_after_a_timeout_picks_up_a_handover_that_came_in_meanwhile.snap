@@ -8,4 +8,7 @@ message: "back to you"
 changes: none
 counts: 0 nodes, 0 edges, 0 groups, 0 notes, 0 annotations
 board is empty
+help[2]:
+  wb say "<reply>"
+  wb wait
 [exit 0]

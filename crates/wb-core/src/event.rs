@@ -71,7 +71,26 @@ pub enum Change {
     TurnPassed {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         message: Option<String>,
+        /// What the human had selected when they handed over: what "this" means in the message.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        pointing_at: Vec<ItemId>,
     },
+}
+
+impl Change {
+    /// The item this change adds or alters, if any.
+    pub fn item(&self) -> Option<ItemId> {
+        match self {
+            Change::NodeAdded { id, .. } | Change::NodeMoved { id, .. } => Some((*id).into()),
+            Change::EdgeAdded { id, .. } => Some((*id).into()),
+            Change::GroupAdded { id, .. } => Some((*id).into()),
+            Change::AnnotationAdded { id, .. } => Some((*id).into()),
+            Change::ItemRelabeled { id, .. } => Some(*id),
+            Change::ItemDeleted { .. } | Change::MessageSent { .. } | Change::TurnPassed { .. } => {
+                None
+            }
+        }
+    }
 }
 
 /// Everything about an event except what the log assigns: sequence, time and turn.
