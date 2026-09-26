@@ -117,7 +117,10 @@ fn near_finds_a_free_spot_next_to_the_anchor() {
     assert_no_overlaps(&board);
     for node in board.nodes.values() {
         let d = at(&board, a);
-        assert!((node.at.x - d.x).abs() <= 240.0 && (node.at.y - d.y).abs() <= 160.0);
+        assert!(
+            (node.at.x - d.x).abs() <= wb_core::layout::PITCH_X
+                && (node.at.y - d.y).abs() <= wb_core::layout::PITCH_Y
+        );
     }
 }
 

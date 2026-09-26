@@ -260,6 +260,22 @@ impl Board {
         }
     }
 
+    pub fn next_node_id(&self) -> NodeId {
+        NodeId(self.allocated.node + 1)
+    }
+
+    pub fn next_edge_id(&self) -> EdgeId {
+        EdgeId(self.allocated.edge + 1)
+    }
+
+    pub fn next_group_id(&self) -> GroupId {
+        GroupId(self.allocated.group + 1)
+    }
+
+    pub fn next_annotation_id(&self) -> AnnotationId {
+        AnnotationId(self.allocated.annotation + 1)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
             && self.edges.is_empty()

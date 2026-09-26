@@ -1,0 +1,11 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb wait --timeout 1
+turn: 3, agent's turn
+message: "back to you"
+changes: none
+counts: 0 nodes, 0 edges, 0 groups, 0 notes, 0 annotations
+board is empty
+[exit 0]

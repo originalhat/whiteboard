@@ -2,6 +2,8 @@ use std::path::Path;
 
 use assert_cmd::Command;
 use tempfile::TempDir;
+use wb_core::{Actor, Change, Draft, Intent, ItemId, NodeId, NodeKind, Outcome, Placement};
+use wb_store::Store;
 
 struct Session {
     home: TempDir,
@@ -25,6 +27,7 @@ impl Session {
             .unwrap()
             .args(args)
             .env("WB_HOME", self.path())
+            .env("WB_NO_SERVE", "1")
             .env_remove("WB_BOARD")
             .current_dir(self.path())
             .output()
@@ -34,6 +37,7 @@ impl Session {
             .unwrap()
             .replace(&bin.display().to_string(), "[bin]")
             .replace(&self.path().display().to_string(), "[home]");
+        let stdout = redact_tokens(&stdout);
         let shown: Vec<String> = args
             .iter()
             .map(|a| {
@@ -49,6 +53,43 @@ impl Session {
         self.transcript += &format!("$ {}\n{stdout}[exit {code}]\n\n", command.trim_end());
         stdout
     }
+}
+
+fn redact_tokens(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(i) = rest.find("?t=") {
+        out += &rest[..i + 3];
+        rest = &rest[i + 3..];
+        let len = rest
+            .find(|c: char| !c.is_ascii_hexdigit())
+            .unwrap_or(rest.len());
+        out += "[token]";
+        rest = &rest[len..];
+    }
+    out + rest
+}
+
+/// Acts on the board the way the canvas would, as the human.
+fn human(home: &Path, intent: Intent) {
+    let mut store = Store::open(&home.join("wb.db")).unwrap();
+    let board = store.load("b1").unwrap();
+    let Outcome::Changed(change) = board.plan(&intent).unwrap() else {
+        panic!("{intent:?} changed nothing");
+    };
+    store
+        .append("b1", Draft::new(Actor::Human, change), 0)
+        .unwrap();
+}
+
+fn human_hands_over(home: &Path, message: &str) {
+    let mut store = Store::open(&home.join("wb.db")).unwrap();
+    let change = Change::TurnPassed {
+        message: Some(message.into()),
+    };
+    store
+        .append("b1", Draft::new(Actor::Human, change), 0)
+        .unwrap();
 }
 
 #[test]
@@ -183,4 +224,103 @@ fn the_schema_is_available_from_the_binary() {
     let schema: serde_json::Value = serde_json::from_str(&wb.run(&["schema"])).unwrap();
 
     assert_eq!(schema, wb_core::schema());
+}
+
+#[test]
+fn the_agent_hears_about_changes_the_human_made_while_it_worked() {
+    let mut wb = Session::new();
+    wb.run(&["new", "Heads up"]);
+    wb.run(&["add", "service", "A"]);
+    wb.transcript.clear();
+
+    human(
+        wb.path(),
+        Intent::Add {
+            kind: NodeKind::Component,
+            label: "Retry worker".into(),
+            placement: Placement::Below(ItemId::Node(NodeId(1))),
+        },
+    );
+    wb.run(&["add", "service", "B"]);
+    wb.run(&["add", "service", "C"]);
+
+    insta::assert_snapshot!(wb.transcript);
+}
+
+#[test]
+fn waiting_hands_the_turn_over_and_returns_the_humans_reply() {
+    let mut wb = Session::new();
+    wb.run(&["new", "Turns"]);
+    wb.run(&["add", "service", "Order Service"]);
+    wb.run(&["say", "Here's my first take"]);
+    wb.transcript.clear();
+
+    let home = wb.path().to_path_buf();
+    let reply = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        human(
+            &home,
+            Intent::Relabel {
+                id: ItemId::Node(NodeId(1)),
+                label: "Checkout".into(),
+            },
+        );
+        human_hands_over(&home, "make the queue async");
+    });
+    wb.run(&["wait", "--timeout", "20"]);
+    reply.join().unwrap();
+    wb.run(&[]);
+
+    insta::assert_snapshot!(wb.transcript);
+}
+
+#[test]
+fn waiting_gives_up_politely_when_the_human_is_still_thinking() {
+    let mut wb = Session::new();
+    wb.run(&["new", "Turns"]);
+    wb.transcript.clear();
+
+    wb.run(&["wait", "--timeout", "1"]);
+    wb.run(&["wait", "--timeout", "1"]);
+
+    insta::assert_snapshot!(wb.transcript);
+}
+
+#[test]
+fn status_shows_what_the_agent_is_doing() {
+    let mut wb = Session::new();
+    wb.run(&["new", "Presence"]);
+    wb.transcript.clear();
+
+    wb.run(&["status", "thinking about the queue boundary"]);
+    wb.run(&[]);
+    wb.run(&["status", "--clear"]);
+
+    insta::assert_snapshot!(wb.transcript);
+}
+
+#[test]
+fn open_gives_the_canvas_address() {
+    let mut wb = Session::new();
+    wb.run(&["new", "Canvas"]);
+    wb.run(&["new", "Other"]);
+    wb.transcript.clear();
+
+    wb.run(&["open", "b1"]);
+    wb.run(&["open"]);
+
+    insta::assert_snapshot!(wb.transcript);
+}
+
+#[test]
+fn waiting_again_after_a_timeout_picks_up_a_handover_that_came_in_meanwhile() {
+    let mut wb = Session::new();
+    wb.run(&["new", "Turns"]);
+    wb.run(&["wait", "--timeout", "1"]);
+    human_hands_over(wb.path(), "back to you");
+    wb.transcript.clear();
+
+    wb.run(&["wait", "--timeout", "1"]);
+
+    insta::assert_snapshot!(wb.transcript);
 }

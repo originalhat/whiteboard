@@ -1,0 +1,15 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb wait --timeout 1
+waiting: still the human's turn after 1s
+help[1]:
+  wb wait
+[exit 0]
+
+$ wb wait --timeout 1
+waiting: still the human's turn after 1s
+help[1]:
+  wb wait
+[exit 0]

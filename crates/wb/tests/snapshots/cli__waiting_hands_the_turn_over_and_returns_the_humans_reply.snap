@@ -1,0 +1,25 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb wait --timeout 20
+turn: 3, agent's turn
+message: "make the queue async"
+changes[1] (since seq 2):
+  4 t2 human: relabeled n1 "Checkout"
+counts: 1 node, 0 edges, 0 groups, 0 notes, 0 annotations
+nodes[1]{id,kind,label,by}:
+  n1,service,Checkout,agent
+[exit 0]
+
+$ wb
+bin: [bin]
+description: Shared whiteboard where you and a human design together
+board: b1 "Turns"
+turn: 3, agent's turn
+counts: 1 node, 0 edges, 0 groups, 0 notes, 0 annotations
+last: 5 t2 human: passed the turn: "make the queue async"
+help[2]:
+  wb look
+  wb add <kind> "<label>" [--right-of <id>]
+[exit 0]

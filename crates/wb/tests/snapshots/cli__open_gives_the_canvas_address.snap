@@ -1,0 +1,23 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb open b1
+active: b1 "Canvas"
+turn: 1, agent's turn
+counts: 0 nodes, 0 edges, 0 groups, 0 notes, 0 annotations
+canvas: http://127.0.0.1:4747/b/b1?t=[token]
+help[2]:
+  wb look
+  wb wait
+[exit 0]
+
+$ wb open
+active: b1 "Canvas"
+turn: 1, agent's turn
+counts: 0 nodes, 0 edges, 0 groups, 0 notes, 0 annotations
+canvas: http://127.0.0.1:4747/b/b1?t=[token]
+help[2]:
+  wb look
+  wb wait
+[exit 0]

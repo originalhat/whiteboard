@@ -2,10 +2,10 @@
 
 use crate::model::Point;
 
-pub const NODE_WIDTH: f64 = 160.0;
+pub const NODE_WIDTH: f64 = 200.0;
 pub const NODE_HEIGHT: f64 = 80.0;
-pub const PITCH_X: f64 = 240.0;
-pub const PITCH_Y: f64 = 160.0;
+pub const PITCH_X: f64 = 340.0;
+pub const PITCH_Y: f64 = 220.0;
 const COLUMNS: usize = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

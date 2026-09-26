@@ -1,6 +1,6 @@
 use crate::Error;
 use crate::event::Change;
-use crate::id::{EdgeId, GroupId, ItemId, NodeId};
+use crate::id::{ItemId, NodeId};
 use crate::layout::{self, Spot};
 use crate::model::{Board, NodeKind, Point};
 use crate::replay::check_label;
@@ -83,7 +83,7 @@ impl Board {
                     return Ok(Same(Unchanged::Exists(node.id.into())));
                 }
                 Ok(Changed(Change::NodeAdded {
-                    id: NodeId(self.allocated.node + 1),
+                    id: self.next_node_id(),
                     kind: *kind,
                     label: label.clone(),
                     at: self.position(*placement, None)?,
@@ -104,7 +104,7 @@ impl Board {
                 }
                 let placement = on.map_or(Placement::Auto, Placement::Near);
                 Ok(Changed(Change::NodeAdded {
-                    id: NodeId(self.allocated.node + 1),
+                    id: self.next_node_id(),
                     kind: NodeKind::Note,
                     label: text.clone(),
                     at: self.position(placement, None)?,
@@ -121,7 +121,7 @@ impl Board {
                     return Ok(Same(Unchanged::Exists(edge.id.into())));
                 }
                 Ok(Changed(Change::EdgeAdded {
-                    id: EdgeId(self.allocated.edge + 1),
+                    id: self.next_edge_id(),
                     from,
                     to,
                     label: label.clone(),
@@ -141,7 +141,7 @@ impl Board {
                     };
                 }
                 Ok(Changed(Change::GroupAdded {
-                    id: GroupId(self.allocated.group + 1),
+                    id: self.next_group_id(),
                     label: label.clone(),
                     members,
                 }))

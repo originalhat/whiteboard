@@ -210,3 +210,70 @@ fn import_refuses_a_log_that_does_not_replay_and_stores_nothing() {
     );
     assert_eq!(store.boards().unwrap().len(), 1);
 }
+
+#[test]
+fn each_board_gets_its_own_unguessable_canvas_token() {
+    let mut store = Store::in_memory().unwrap();
+    let a = store.create_board("A", None, 0).unwrap();
+    let b = store.create_board("B", None, 0).unwrap();
+
+    let (ta, tb) = (store.token(&a.id).unwrap(), store.token(&b.id).unwrap());
+
+    assert_eq!(ta.len(), 32);
+    assert_ne!(ta, tb);
+    assert_eq!(store.token(&a.id).unwrap(), ta);
+}
+
+#[test]
+fn a_database_from_m0_is_upgraded_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("wb.db");
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE boards (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL,
+             source TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+         INSERT INTO boards (title, created_at, updated_at) VALUES ('Old', 0, 0);",
+    )
+    .unwrap();
+    drop(conn);
+
+    let mut store = Store::open(&path).unwrap();
+
+    assert_eq!(store.token("b1").unwrap().len(), 32);
+    store.set_presence("b1", Some("thinking"), 5).unwrap();
+    drop(store);
+    assert!(
+        Store::open(&path).is_ok(),
+        "opening twice must not re-run migrations"
+    );
+}
+
+#[test]
+fn presence_is_set_and_cleared_without_touching_the_log() {
+    let mut store = Store::in_memory().unwrap();
+    let board = store.create_board("A", None, 0).unwrap();
+
+    store
+        .set_presence(&board.id, Some("thinking about the queue"), 9)
+        .unwrap();
+    let set = store.presence(&board.id).unwrap();
+    store.set_presence(&board.id, None, 10).unwrap();
+
+    assert_eq!(set, Some(("thinking about the queue".to_string(), 9)));
+    assert_eq!(store.presence(&board.id).unwrap(), None);
+    assert!(store.events(&board.id, 0).unwrap().is_empty());
+}
+
+#[test]
+fn readers_remember_how_far_they_have_read() {
+    let mut store = Store::in_memory().unwrap();
+    let board = store.create_board("A", None, 0).unwrap();
+    store.append(&board.id, node(1, "A"), 0).unwrap();
+
+    let before = store.cursor(&board.id, "agent").unwrap();
+    store.set_cursor(&board.id, "agent", 1).unwrap();
+
+    assert_eq!(before, 0);
+    assert_eq!(store.cursor(&board.id, "agent").unwrap(), 1);
+    assert_eq!(store.latest_seq(&board.id).unwrap(), 1);
+}

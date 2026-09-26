@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use wb_core::look::{self, cell, quoted};
 use wb_core::{
@@ -10,6 +10,9 @@ use wb_store::{Error as StoreError, Store};
 
 use crate::DESCRIPTION;
 use crate::failure::Failure;
+use crate::server;
+
+const AGENT: &str = "agent";
 
 type Output = Result<String, Failure>;
 
@@ -44,6 +47,17 @@ impl App {
             .last()
         {
             out += &format!("last: {}\n", event_row(last));
+        }
+        if let Some((status, _)) = self.store.presence(&id)? {
+            out += &format!("status: {status}\n");
+        }
+        let unseen = self.unseen_human_changes(&id)?;
+        if let Some(first) = unseen.first() {
+            out += &format!(
+                "unseen: {} (wb log --since {})\n",
+                look::plural(unseen.len(), "human change"),
+                first.seq - 1
+            );
         }
         out += &help_block(&["wb look", "wb add <kind> \"<label>\" [--right-of <id>]"]);
         Ok(out)
@@ -101,7 +115,12 @@ impl App {
         Ok(out)
     }
 
-    pub fn open_board(&mut self, key: &str) -> Output {
+    pub fn open_board(&mut self, key: Option<&str>) -> Output {
+        let key = match key {
+            Some(key) => key.to_string(),
+            None => self.board_id()?,
+        };
+        let key = key.as_str();
         let meta = match self.store.board(key) {
             Ok(meta) => meta,
             Err(StoreError::BoardNotFound(_)) => self
@@ -112,16 +131,23 @@ impl App {
         };
         self.store.set_active(&meta.id)?;
         let board = self.store.load(&meta.id)?;
+        let port = server::port();
+        if std::env::var_os("WB_NO_SERVE").is_none() {
+            server::ensure_running(port)?;
+        }
         Ok(format!(
-            "active: {}\n{}{}",
+            "active: {}\n{}canvas: http://127.0.0.1:{port}/b/{}?t={}\n{}",
             describe_meta(&meta),
             header_status(&board),
-            help_block(&["wb look"])
+            meta.id,
+            self.store.token(&meta.id)?,
+            help_block(&["wb look", "wb wait"])
         ))
     }
 
-    pub fn look(&self) -> Output {
+    pub fn look(&mut self) -> Output {
         let id = self.board_id()?;
+        self.mark_seen(&id)?;
         let (meta, board) = (self.store.board(&id)?, self.store.load(&id)?);
         let mut out = header(&meta, &board) + &look::board(&board);
         if board.is_empty() {
@@ -132,8 +158,9 @@ impl App {
 
     pub fn edit(&mut self, intent: Intent, why: Option<String>) -> Output {
         let id = self.board_id()?;
+        let heads_up = self.heads_up(&id)?;
         let board = self.store.load(&id)?;
-        match board.plan(&intent)? {
+        let out = match board.plan(&intent)? {
             Outcome::Changed(change) => {
                 let event =
                     self.store
@@ -148,13 +175,15 @@ impl App {
                         format!("wb note \"<text>\" --on {id}"),
                     ]);
                 }
-                Ok(out)
+                out
             }
-            Outcome::Unchanged(unchanged) => Ok(format!(
+            Outcome::Unchanged(unchanged) => format!(
                 "unchanged: {}\n",
                 describe_unchanged(&board, &intent, unchanged)
-            )),
-        }
+            ),
+        };
+        self.mark_seen(&id)?;
+        Ok(heads_up + &out)
     }
 
     pub fn delete(&mut self, ids: Vec<ItemId>, why: Option<String>) -> Output {
@@ -165,7 +194,7 @@ impl App {
                 return Err(wb_core::Error::NotFound(*item).into());
             }
         }
-        let mut out = String::new();
+        let mut out = self.heads_up(&id)?;
         for item in ids {
             let intent = Intent::Delete { id: item };
             match board.plan(&intent)? {
@@ -192,14 +221,87 @@ impl App {
                 }
             }
         }
+        self.mark_seen(&id)?;
         Ok(out)
     }
 
     pub fn say(&mut self, text: String) -> Output {
         let id = self.board_id()?;
         let draft = Draft::new(Actor::Agent, Change::MessageSent { text });
+        let heads_up = self.heads_up(&id)?;
         let event = self.store.append(&id, draft, now())?;
-        Ok(format!("{}\n", look::describe(&event.change)))
+        self.mark_seen(&id)?;
+        Ok(format!("{heads_up}{}\n", look::describe(&event.change)))
+    }
+
+    pub fn wait(&mut self, timeout: Duration) -> Output {
+        let id = self.board_id()?;
+        let mut board = self.store.load(&id)?;
+        let since = self.store.cursor(&id, AGENT)?;
+        let unread_handover = self
+            .store
+            .events(&id, since)?
+            .iter()
+            .any(|e| e.actor == Actor::Human && matches!(e.change, Change::TurnPassed { .. }));
+        if board.holder == Actor::Agent && !unread_handover {
+            let pass = Draft::new(Actor::Agent, Change::TurnPassed { message: None });
+            self.store.append(&id, pass, now())?;
+            self.store.set_presence(&id, None, now())?;
+            board = self.store.load(&id)?;
+        }
+        let deadline = Instant::now() + timeout;
+        while board.holder != Actor::Agent {
+            if Instant::now() >= deadline {
+                return Ok(format!(
+                    "waiting: still the human's turn after {}s\n{}",
+                    timeout.as_secs(),
+                    help_block(&["wb wait"])
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(200));
+            if self.store.latest_seq(&id)? != board.last_seq {
+                board = self.store.load(&id)?;
+            }
+        }
+        let events = self.store.events(&id, since)?;
+        let message = events
+            .iter()
+            .rev()
+            .find_map(|e| match (&e.actor, &e.change) {
+                (Actor::Human, Change::TurnPassed { message }) => Some(message.clone()),
+                _ => None,
+            })
+            .flatten();
+        let changes: Vec<&Event> = events
+            .iter()
+            .filter(|e| e.actor == Actor::Human && !matches!(e.change, Change::TurnPassed { .. }))
+            .collect();
+        let mut out = format!(
+            "turn: {}, agent's turn\nmessage: {}\n",
+            board.turn,
+            message.as_deref().map_or("none".into(), quoted)
+        );
+        if changes.is_empty() {
+            out += "changes: none\n";
+        } else {
+            out += &format!("changes[{}] (since seq {since}):\n", changes.len());
+            for event in changes {
+                out += &format!("  {}\n", event_row(event));
+            }
+        }
+        out += &format!("counts: {}\n", look::counts(&board));
+        out += &look::board(&board);
+        self.mark_seen(&id)?;
+        Ok(out)
+    }
+
+    pub fn status(&mut self, text: Option<&str>) -> Output {
+        let id = self.board_id()?;
+        self.store.set_presence(&id, text, now())?;
+        Ok(match text {
+            Some(text) => format!("status: {text}\n"),
+            None => "status: cleared\n".into(),
+        })
     }
 
     pub fn log(&self, since: Option<u64>, limit: usize) -> Output {
@@ -260,6 +362,38 @@ impl App {
         ))
     }
 
+    fn unseen_human_changes(&self, id: &str) -> Result<Vec<Event>, Failure> {
+        let since = self.store.cursor(id, AGENT)?;
+        Ok(self
+            .store
+            .events(id, since)?
+            .into_iter()
+            .filter(|e| e.actor == Actor::Human)
+            .collect())
+    }
+
+    /// Lists what the human changed since the agent last looked, so it's never overwritten blind.
+    fn heads_up(&self, id: &str) -> Result<String, Failure> {
+        let unseen = self.unseen_human_changes(id)?;
+        if unseen.is_empty() {
+            return Ok(String::new());
+        }
+        let mut out = format!(
+            "heads up: the human changed the board since you last looked\nchanges[{}]:\n",
+            unseen.len()
+        );
+        for event in &unseen {
+            out += &format!("  {}\n", event_row(event));
+        }
+        Ok(out)
+    }
+
+    fn mark_seen(&mut self, id: &str) -> Result<(), Failure> {
+        let latest = self.store.latest_seq(id)?;
+        self.store.set_cursor(id, AGENT, latest)?;
+        Ok(())
+    }
+
     fn current(&self) -> Result<Option<String>, Failure> {
         match &self.board_flag {
             Some(id) => Ok(Some(id.clone())),
@@ -283,7 +417,7 @@ pub fn help_block<S: AsRef<str>>(lines: &[S]) -> String {
     out
 }
 
-fn data_dir() -> PathBuf {
+pub fn data_dir() -> PathBuf {
     std::env::var_os("WB_HOME")
         .map(PathBuf::from)
         .or_else(|| dirs::data_dir().map(|d| d.join("whiteboard")))

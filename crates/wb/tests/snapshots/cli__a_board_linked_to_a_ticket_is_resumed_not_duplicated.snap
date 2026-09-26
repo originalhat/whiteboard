@@ -15,16 +15,20 @@ $ wb open b2
 active: b2 "Something else"
 turn: 1, agent's turn
 counts: 0 nodes, 0 edges, 0 groups, 0 notes, 0 annotations
-help[1]:
+canvas: http://127.0.0.1:4747/b/b2?t=[token]
+help[2]:
   wb look
+  wb wait
 [exit 0]
 
 $ wb open LIN-123
 active: b1 "Checkout" (source LIN-123)
 turn: 1, agent's turn
 counts: 1 node, 0 edges, 0 groups, 0 notes, 0 annotations
-help[1]:
+canvas: http://127.0.0.1:4747/b/b1?t=[token]
+help[2]:
   wb look
+  wb wait
 [exit 0]
 
 $ wb boards

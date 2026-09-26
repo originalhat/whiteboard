@@ -68,6 +68,23 @@ const SCHEMA: &str = "
     );
 ";
 
+/// Applied in order; `PRAGMA user_version` records how many have run.
+const MIGRATIONS: &[&str] = &["
+    ALTER TABLE boards ADD COLUMN token TEXT;
+    UPDATE boards SET token = lower(hex(randomblob(16))) WHERE token IS NULL;
+    CREATE TABLE presence (
+        board_id INTEGER PRIMARY KEY REFERENCES boards (id),
+        text TEXT NOT NULL,
+        at INTEGER NOT NULL
+    );
+    CREATE TABLE cursors (
+        board_id INTEGER NOT NULL REFERENCES boards (id),
+        reader TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        PRIMARY KEY (board_id, reader)
+    );
+"];
+
 const DEFAULT_SNAPSHOT_EVERY: u64 = 100;
 
 impl Store {
@@ -79,8 +96,10 @@ impl Store {
         Store::init(Connection::open_in_memory()?)
     }
 
-    fn init(conn: Connection) -> Result<Store, Error> {
+    fn init(mut conn: Connection) -> Result<Store, Error> {
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.execute_batch(SCHEMA)?;
+        migrate(&mut conn)?;
         Ok(Store {
             conn,
             snapshot_every: DEFAULT_SNAPSHOT_EVERY,
@@ -187,6 +206,72 @@ impl Store {
         Ok(event)
     }
 
+    pub fn token(&self, id: &str) -> Result<String, Error> {
+        self.board(id)?;
+        Ok(self.conn.query_row(
+            "SELECT token FROM boards WHERE id = ?1",
+            [row_id(id)?],
+            |row| row.get(0),
+        )?)
+    }
+
+    pub fn latest_seq(&self, id: &str) -> Result<u64, Error> {
+        let seq: i64 = self.conn.query_row(
+            "SELECT COALESCE(MAX(seq), 0) FROM events WHERE board_id = ?1",
+            [row_id(id)?],
+            |row| row.get(0),
+        )?;
+        Ok(seq as u64)
+    }
+
+    /// What the agent is up to right now. Not part of the board's history.
+    pub fn presence(&self, id: &str) -> Result<Option<(String, i64)>, Error> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT text, at FROM presence WHERE board_id = ?1",
+                [row_id(id)?],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?)
+    }
+
+    pub fn set_presence(&mut self, id: &str, text: Option<&str>, now: i64) -> Result<(), Error> {
+        self.board(id)?;
+        let board_id = row_id(id)?;
+        match text {
+            Some(text) => self.conn.execute(
+                "INSERT OR REPLACE INTO presence (board_id, text, at) VALUES (?1, ?2, ?3)",
+                params![board_id, text, now],
+            )?,
+            None => self
+                .conn
+                .execute("DELETE FROM presence WHERE board_id = ?1", [board_id])?,
+        };
+        Ok(())
+    }
+
+    /// The last sequence number a reader has seen on a board.
+    pub fn cursor(&self, id: &str, reader: &str) -> Result<u64, Error> {
+        let seq: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT seq FROM cursors WHERE board_id = ?1 AND reader = ?2",
+                params![row_id(id)?, reader],
+                |row| row.get(0),
+            )
+            .optional()?;
+        Ok(seq.unwrap_or(0) as u64)
+    }
+
+    pub fn set_cursor(&mut self, id: &str, reader: &str, seq: u64) -> Result<(), Error> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO cursors (board_id, reader, seq) VALUES (?1, ?2, ?3)",
+            params![row_id(id)?, reader, seq as i64],
+        )?;
+        Ok(())
+    }
+
     pub fn drop_snapshots(&mut self) -> Result<(), Error> {
         self.conn.execute("DELETE FROM snapshots", [])?;
         Ok(())
@@ -273,6 +358,17 @@ impl Store {
     }
 }
 
+fn migrate(conn: &mut Connection) -> Result<(), Error> {
+    let done: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    for (i, migration) in MIGRATIONS.iter().enumerate().skip(done as usize) {
+        let tx = conn.transaction()?;
+        tx.execute_batch(migration)?;
+        tx.pragma_update(None, "user_version", i as i64 + 1)?;
+        tx.commit()?;
+    }
+    Ok(())
+}
+
 fn insert_board(
     conn: &Connection,
     title: &str,
@@ -280,7 +376,8 @@ fn insert_board(
     now: i64,
 ) -> Result<BoardMeta, Error> {
     conn.execute(
-        "INSERT INTO boards (title, source, created_at, updated_at) VALUES (?1, ?2, ?3, ?3)",
+        "INSERT INTO boards (title, source, created_at, updated_at, token)
+         VALUES (?1, ?2, ?3, ?3, lower(hex(randomblob(16))))",
         params![title, source, now],
     )?;
     Ok(BoardMeta {

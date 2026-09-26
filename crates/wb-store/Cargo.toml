@@ -11,4 +11,5 @@ wb-core = { version = "0.1.0", path = "../wb-core" }
 
 [dev-dependencies]
 proptest = "1.11.0"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 tempfile = "3.27.0"

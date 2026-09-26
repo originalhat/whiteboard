@@ -1,0 +1,20 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb add service B
+heads up: the human changed the board since you last looked
+changes[1]:
+  2 t1 human: added component n2 "Retry worker"
+added service n3 "B"
+help[2]:
+  wb connect n3 <id> "<label>"
+  wb note "<text>" --on n3
+[exit 0]
+
+$ wb add service C
+added service n4 "C"
+help[2]:
+  wb connect n4 <id> "<label>"
+  wb note "<text>" --on n4
+[exit 0]

@@ -69,13 +69,17 @@ If it later needs a panel inside bb itself, that bb plugin lives in `~/workspace
 One Rust binary, `wb`, that ships with the web canvas embedded in it.
 
 ```
-agent session ──(shell)──> wb <verb>  ──HTTP──>  wb serve  <──WebSocket──>  browser canvas (Excalidraw + adapter)
-                                                    │
-                                                 SQLite
+agent session ──(shell)──> wb <verb> ──┐
+                                        ├──> SQLite (WAL)
+browser canvas <──SSE / POST──> wb serve ┘
 ```
 
-- `wb serve` is the only writer. It owns the database, orders events, and broadcasts every change to
-  connected canvases. Other `wb` commands start it on demand when it isn't running.
+- `wb` and `wb serve` share the SQLite file. SQLite transactions order events, and `wb serve` watches
+  the file and streams every change to connected canvases. `wb open` starts the server when it isn't
+  running. (Changed in M1 from "the server is the only writer": inside the Claude Code sandbox a
+  sandboxed `wb` can't reach a server started outside it, but a server it starts is reachable from the
+  browser. Sharing the file needs one sandbox allowance, write access to the data folder, instead of
+  two, and `wb` works with no server running.)
 - `wb <verb>` is the agent's interface. Each command does one thing, and its output tells the agent
   what happened and what it might do next.
 - The canvas is a Vite + TypeScript + React app wrapping Excalidraw, embedded in the binary and opened

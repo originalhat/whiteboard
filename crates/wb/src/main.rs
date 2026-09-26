@@ -1,5 +1,6 @@
 mod app;
 mod failure;
+mod server;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -33,8 +34,8 @@ enum Command {
     },
     /// List boards
     Boards,
-    /// Make a board active, by id or by source
-    Open { board: String },
+    /// Make a board active, by id or by source, and print its canvas address
+    Open { board: Option<String> },
     /// Show the board as compact text
     Look,
     /// Add a node
@@ -95,6 +96,19 @@ enum Command {
     },
     /// Reply to the human
     Say { text: String },
+    /// Hand the turn to the human and wait until they hand it back
+    Wait {
+        /// Give up after this many seconds, short enough for an agent's shell timeout
+        #[arg(long, default_value_t = 110)]
+        timeout: u64,
+    },
+    /// Tell the human what you're doing right now
+    Status {
+        #[arg(required_unless_present = "clear")]
+        text: Option<String>,
+        #[arg(long, conflicts_with = "text")]
+        clear: bool,
+    },
     /// Show recent events
     Log {
         /// Only events after this sequence number
@@ -113,6 +127,11 @@ enum Command {
     Import { file: PathBuf },
     /// Print the JSON Schema for exported lines
     Schema,
+    /// Run the canvas server (wb open starts it for you)
+    Serve {
+        #[arg(long, env = "WB_PORT", default_value_t = server::DEFAULT_PORT)]
+        port: u16,
+    },
 }
 
 #[derive(Args)]
@@ -176,6 +195,9 @@ fn main() -> ExitCode {
 }
 
 fn run(cli: Cli) -> Result<String, Failure> {
+    if let Some(Command::Serve { port }) = cli.command {
+        return serve(port);
+    }
     let mut app = App::open(cli.board)?;
     let Some(command) = cli.command else {
         return app.home();
@@ -183,7 +205,7 @@ fn run(cli: Cli) -> Result<String, Failure> {
     match command {
         Command::New { title, source } => app.new_board(&title, source.as_deref()),
         Command::Boards => app.boards(),
-        Command::Open { board } => app.open_board(&board),
+        Command::Open { board } => app.open_board(board.as_deref()),
         Command::Look => app.look(),
         Command::Add {
             kind,
@@ -223,9 +245,21 @@ fn run(cli: Cli) -> Result<String, Failure> {
         }
         Command::Delete { ids, why } => app.delete(ids, why.why),
         Command::Say { text } => app.say(text),
+        Command::Wait { timeout } => app.wait(std::time::Duration::from_secs(timeout)),
+        Command::Status { text, .. } => app.status(text.as_deref()),
         Command::Log { since, limit } => app.log(since, limit),
         Command::Export { board, output } => app.export(board, output),
         Command::Import { file } => app.import(&file),
         Command::Schema => Ok(serde_json::to_string_pretty(&wb_core::schema()).unwrap() + "\n"),
+        Command::Serve { .. } => unreachable!("handled above"),
     }
+}
+
+fn serve(port: u16) -> Result<String, Failure> {
+    App::open(None)?;
+    let db = app::data_dir().join("wb.db");
+    tokio::runtime::Runtime::new()?
+        .block_on(wb_server::serve(&db, port))
+        .map_err(|e| Failure::new(format!("wb serve on port {port}: {e}")))?;
+    Ok(String::new())
 }

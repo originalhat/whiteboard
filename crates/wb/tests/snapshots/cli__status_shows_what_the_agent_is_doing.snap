@@ -1,0 +1,23 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb status "thinking about the queue boundary"
+status: thinking about the queue boundary
+[exit 0]
+
+$ wb
+bin: [bin]
+description: Shared whiteboard where you and a human design together
+board: b1 "Presence"
+turn: 1, agent's turn
+counts: 0 nodes, 0 edges, 0 groups, 0 notes, 0 annotations
+status: thinking about the queue boundary
+help[2]:
+  wb look
+  wb add <kind> "<label>" [--right-of <id>]
+[exit 0]
+
+$ wb status --clear
+status: cleared
+[exit 0]
