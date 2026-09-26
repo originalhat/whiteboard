@@ -338,6 +338,8 @@ impl Op {
                     label,
                     at,
                     attached_to: None,
+                    altitude: None,
+                    parent: None,
                 },
             ),
             Op::Note {
@@ -353,6 +355,8 @@ impl Op {
                     label: text,
                     at,
                     attached_to: on,
+                    altitude: None,
+                    parent: None,
                 },
             ),
             Op::Move { client_id, id, to } => (client_id, Change::NodeMoved { id, to }),

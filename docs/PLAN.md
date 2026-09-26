@@ -287,6 +287,10 @@ understand my marks" measurable. Browser end-to-end tests come in M1.
 
 ### Altitude slider
 
+Built: node altitudes and parents, `wb add --altitude/--in`, `wb level`, `wb look --altitude`, edges
+into hidden detail rolled up onto the nearest visible parent, parents drawn as frames around their
+children, and the canvas slider. Not yet: tying marks and notes to the altitude they were made at.
+
 A slider that sets how much detail the board shows. At the top, a handful of boxes for the whole
 system. Moving it down reveals the pieces inside each box, down to classes and methods (roughly the
 C4 levels: context, containers, components, code).

@@ -40,6 +40,8 @@ fn change_for(board: &Board, step: &Step, next_id: u32) -> Option<Change> {
             label: format!("node {next_id}"),
             at: Point::new(step.a as f64, step.b as f64),
             attached_to: pick(&items, step.b),
+            altitude: None,
+            parent: None,
         }),
         1 => Some(Change::EdgeAdded {
             id: EdgeId(next_id),

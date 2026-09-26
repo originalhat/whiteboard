@@ -22,6 +22,8 @@ pub enum Intent {
         kind: NodeKind,
         label: String,
         placement: Placement,
+        altitude: Option<u8>,
+        parent: Option<ItemId>,
     },
     Note {
         text: String,
@@ -43,6 +45,12 @@ pub enum Intent {
     Relabel {
         id: ItemId,
         label: String,
+    },
+    /// Put a node at an altitude, optionally inside a parent node.
+    Level {
+        id: ItemId,
+        altitude: u8,
+        parent: Option<ItemId>,
     },
     Delete {
         id: ItemId,
@@ -73,6 +81,8 @@ impl Board {
                 kind,
                 label,
                 placement,
+                altitude,
+                parent,
             } => {
                 check_label(label)?;
                 if let Some(node) = self
@@ -82,12 +92,40 @@ impl Board {
                 {
                     return Ok(Same(Unchanged::Exists(node.id.into())));
                 }
+                let id = self.next_node_id();
+                let parent = parent.map(|p| self.node_id(p)).transpose()?;
+                let altitude = altitude.or_else(|| parent.map(|p| self.below(p)));
+                self.check_nesting(id, altitude, parent)?;
+                let placement = match (placement, parent) {
+                    (Placement::Auto, Some(p)) => Placement::Near(p.into()),
+                    _ => *placement,
+                };
                 Ok(Changed(Change::NodeAdded {
-                    id: self.next_node_id(),
+                    id,
                     kind: *kind,
                     label: label.clone(),
-                    at: self.position(*placement, None)?,
+                    at: self.position(placement, None)?,
                     attached_to: None,
+                    altitude,
+                    parent,
+                }))
+            }
+            Intent::Level {
+                id,
+                altitude,
+                parent,
+            } => {
+                let id = self.node_id(*id)?;
+                let parent = parent.map(|p| self.node_id(p)).transpose()?;
+                self.check_nesting(id, Some(*altitude), parent)?;
+                let node = &self.nodes[&id];
+                if node.altitude == Some(*altitude) && node.parent == parent {
+                    return Ok(Same(Unchanged::NoChange(id.into())));
+                }
+                Ok(Changed(Change::NodeNested {
+                    id,
+                    altitude: Some(*altitude),
+                    parent,
                 }))
             }
             Intent::Note { text, on } => {
@@ -115,6 +153,8 @@ impl Board {
                     label: text.clone(),
                     at,
                     attached_to: *on,
+                    altitude: None,
+                    parent: None,
                 }))
             }
             Intent::Connect { from, to, label } => {
@@ -185,6 +225,11 @@ impl Board {
                 }
             }
         }
+    }
+
+    /// One level more detailed than a node, for a child placed inside it.
+    fn below(&self, parent: NodeId) -> u8 {
+        self.nodes[&parent].altitude.map_or(2, |a| (a + 1).min(4))
     }
 
     fn node_id(&self, id: ItemId) -> Result<NodeId, Error> {

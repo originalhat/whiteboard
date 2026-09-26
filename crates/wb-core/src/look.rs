@@ -4,49 +4,95 @@
 use std::fmt::Write;
 
 use crate::event::Change;
-use crate::id::ItemId;
+use crate::id::{ItemId, NodeId};
 use crate::model::{Annotation, Board, Node, NodeKind, Relation};
+use crate::view;
 
 pub fn board(board: &Board) -> String {
+    board_at(board, view::LOWEST)
+}
+
+/// The board as it looks at one altitude, with edges into hidden detail rolled up.
+pub fn board_at(board: &Board, altitude: u8) -> String {
     if board.is_empty() {
         return "board is empty\n".into();
     }
-    let (notes, nodes): (Vec<&Node>, Vec<&Node>) =
-        board.nodes.values().partition(|n| n.kind == NodeKind::Note);
+    let view = view::at(board, altitude);
+    let shown = |id: &ItemId| match id {
+        ItemId::Node(n) => view.visible.contains(n),
+        _ => true,
+    };
+    let (notes, nodes): (Vec<&Node>, Vec<&Node>) = board
+        .nodes
+        .values()
+        .filter(|n| view.visible.contains(&n.id))
+        .filter(|n| n.attached_to.as_ref().is_none_or(shown))
+        .partition(|n| n.kind == NodeKind::Note);
+    let leveled = board
+        .nodes
+        .values()
+        .any(|n| n.altitude.is_some() || n.parent.is_some());
     let mut out = String::new();
     table(
         &mut out,
         "nodes",
-        "id,kind,label,by",
+        if leveled {
+            "id,kind,label,by,alt,in"
+        } else {
+            "id,kind,label,by"
+        },
         nodes.iter().map(|n| {
-            vec![
+            let mut row = vec![
                 n.id.to_string(),
                 n.kind.as_str().into(),
                 cell(&n.label),
                 n.by.as_str().into(),
-            ]
+            ];
+            if leveled {
+                row.push(n.altitude.map_or_else(|| cell(""), |a| a.to_string()));
+                row.push(n.parent.map_or_else(|| cell(""), |p| p.to_string()));
+            }
+            row
         }),
     );
     table(
         &mut out,
         "edges",
         "id,from,to,label",
-        board.edges.values().map(|e| {
-            vec![
-                e.id.to_string(),
-                e.from.to_string(),
-                e.to.to_string(),
-                cell(e.label.as_deref().unwrap_or("")),
-            ]
+        board
+            .edges
+            .values()
+            .filter(|e| view.visible.contains(&e.from) && view.visible.contains(&e.to))
+            .map(|e| {
+                vec![
+                    e.id.to_string(),
+                    e.from.to_string(),
+                    e.to.to_string(),
+                    cell(e.label.as_deref().unwrap_or("")),
+                ]
+            }),
+    );
+    table(
+        &mut out,
+        "rollups",
+        "from,to,via",
+        view.rollups.iter().map(|r| {
+            let via: Vec<String> = r.via.iter().map(|e| e.to_string()).collect();
+            vec![r.from.to_string(), r.to.to_string(), via.join(" ")]
         }),
     );
     table(
         &mut out,
         "groups",
         "id,label,members",
-        board.groups.values().map(|g| {
-            let members: Vec<String> = g.members.iter().map(|m| m.to_string()).collect();
-            vec![g.id.to_string(), cell(&g.label), members.join(" ")]
+        board.groups.values().filter_map(|g| {
+            let members: Vec<String> = g
+                .members
+                .iter()
+                .filter(|m| view.visible.contains(m))
+                .map(|m| m.to_string())
+                .collect();
+            (!members.is_empty()).then(|| vec![g.id.to_string(), cell(&g.label), members.join(" ")])
         }),
     );
     table(
@@ -97,11 +143,19 @@ pub fn describe(change: &Change) -> String {
             kind,
             label,
             attached_to,
+            altitude,
+            parent,
             ..
         } => {
             let on = attached_to.map_or(String::new(), |t| format!(" on {t}"));
-            format!("added {} {id} {}{on}", kind.as_str(), quoted(label))
+            let place = nesting(*altitude, *parent);
+            format!("added {} {id} {}{on}{place}", kind.as_str(), quoted(label))
         }
+        Change::NodeNested {
+            id,
+            altitude,
+            parent,
+        } => format!("leveled {id}{}", nesting(*altitude, *parent)),
         Change::NodeMoved { id, .. } => format!("moved {id}"),
         Change::EdgeAdded {
             id,
@@ -155,6 +209,12 @@ pub fn describe(change: &Change) -> String {
             format!("passed the turn{message}{pointing}")
         }
     }
+}
+
+fn nesting(altitude: Option<u8>, parent: Option<NodeId>) -> String {
+    let parent = parent.map_or(String::new(), |p| format!(" in {p}"));
+    let altitude = altitude.map_or(String::new(), |a| format!(" at altitude {a}"));
+    parent + &altitude
 }
 
 fn relation_ing(relation: Relation) -> &'static str {

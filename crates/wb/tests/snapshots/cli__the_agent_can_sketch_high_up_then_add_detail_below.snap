@@ -1,0 +1,68 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb add service Checkout --altitude 1
+added service n1 "Checkout" at altitude 1
+help[2]:
+  wb connect n1 <id> "<label>"
+  wb note "<text>" --on n1
+[exit 0]
+
+$ wb add service Billing --altitude 1 --right-of n1
+added service n2 "Billing" at altitude 1 right of n1
+help[2]:
+  wb connect n2 <id> "<label>"
+  wb note "<text>" --on n2
+[exit 0]
+
+$ wb add component CreatePayment --in n1
+added component n3 "CreatePayment" in n1 at altitude 2
+help[2]:
+  wb connect n3 <id> "<label>"
+  wb note "<text>" --on n3
+[exit 0]
+
+$ wb connect n3 n2 charges
+connected e1 n3 -> n2 "charges"
+[exit 0]
+
+$ wb add component Retry --in n1
+added component n4 "Retry" in n1 at altitude 2
+help[2]:
+  wb connect n4 <id> "<label>"
+  wb note "<text>" --on n4
+[exit 0]
+
+$ wb level n4 3 --in n3
+leveled n4 in n3 at altitude 3
+[exit 0]
+
+$ wb look --altitude 1
+board: b1 "Altitude"
+turn: 1, agent's turn
+counts: 4 nodes, 1 edge, 0 groups, 0 notes, 0 annotations
+altitude: 1 of 4
+nodes[2]{id,kind,label,by,alt,in}:
+  n1,service,Checkout,agent,1,""
+  n2,service,Billing,agent,1,""
+rollups[1]{from,to,via}:
+  n1,n2,e1
+[exit 0]
+
+$ wb look
+board: b1 "Altitude"
+turn: 1, agent's turn
+counts: 4 nodes, 1 edge, 0 groups, 0 notes, 0 annotations
+nodes[4]{id,kind,label,by,alt,in}:
+  n1,service,Checkout,agent,1,""
+  n2,service,Billing,agent,1,""
+  n3,component,CreatePayment,agent,2,n1
+  n4,component,Retry,agent,3,n3
+edges[1]{id,from,to,label}:
+  e1,n3,n2,charges
+[exit 0]
+
+$ wb level n4 9
+error: altitude 9 is out of range; use 1 (whole system) to 4 (code)
+[exit 1]

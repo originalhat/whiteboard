@@ -53,6 +53,16 @@
             },
             "payload": {
               "properties": {
+                "altitude": {
+                  "description": "How much detail the node is: 1 is the whole system, 4 is code. Absent shows at every level.",
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
                 "at": {
                   "$ref": "#/$defs/Point"
                 },
@@ -74,6 +84,17 @@
                 },
                 "label": {
                   "type": "string"
+                },
+                "parent": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/NodeId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The node this one is a part of, which it expands out of at lower altitudes."
                 }
               },
               "required": [
@@ -81,6 +102,49 @@
                 "kind",
                 "label",
                 "at"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "node.nested",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "altitude": {
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "$ref": "#/$defs/NodeId"
+                },
+                "parent": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/NodeId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "id"
               ],
               "type": "object"
             }

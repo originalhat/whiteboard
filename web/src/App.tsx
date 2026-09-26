@@ -3,7 +3,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useEffect, useMemo, useState } from "react";
 import { type Location, follow, readLocation } from "./api";
 import { CommentBox, describeMark } from "./CommentBox";
-import type { Message, Presence, Snapshot, WbEvent } from "./model";
+import { LOWEST_ALTITUDE, type Message, type Presence, type Snapshot, type WbEvent } from "./model";
 import { Panel } from "./Panel";
 import { CanvasSync, type NewMark } from "./sync";
 
@@ -28,6 +28,7 @@ function Canvas({ location }: { location: Location }) {
   const [error, setError] = useState<string | null>(null);
   const [newMark, setNewMark] = useState<NewMark | null>(null);
   const [recentCount, setRecentCount] = useState(0);
+  const [altitude, setAltitude] = useState(LOWEST_ALTITUDE);
   const fontsReady = useFonts(api);
   const sync = useMemo(
     () => (api && fontsReady ? new CanvasSync(api, location, setError, setNewMark, setRecentCount) : null),
@@ -53,6 +54,8 @@ function Canvas({ location }: { location: Location }) {
       connection: setOnline,
     });
   }, [sync, location]);
+
+  useEffect(() => sync?.setAltitude(altitude), [sync, altitude]);
 
   useEffect(() => {
     if (snapshot) document.title = `${snapshot.meta.title} · Whiteboard`;
@@ -85,6 +88,8 @@ function Canvas({ location }: { location: Location }) {
         online={online}
         error={error}
         recentCount={recentCount}
+        altitude={altitude}
+        onAltitude={setAltitude}
         onDismissError={() => setError(null)}
         onHandOver={(message) => sync?.passTurn(message) ?? Promise.resolve(false)}
       />

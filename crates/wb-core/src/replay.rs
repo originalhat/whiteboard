@@ -54,6 +54,8 @@ impl Board {
                 id,
                 label,
                 attached_to,
+                altitude,
+                parent,
                 ..
             } => {
                 self.check_fresh((*id).into())?;
@@ -61,6 +63,15 @@ impl Board {
                 if let Some(target) = attached_to {
                     self.check_exists(*target)?;
                 }
+                self.check_nesting(*id, *altitude, *parent)?;
+            }
+            Change::NodeNested {
+                id,
+                altitude,
+                parent,
+            } => {
+                self.check_exists((*id).into())?;
+                self.check_nesting(*id, *altitude, *parent)?;
             }
             Change::NodeMoved { id, .. } => self.check_exists((*id).into())?,
             Change::EdgeAdded { id, from, to, .. } => {
@@ -108,6 +119,8 @@ impl Board {
                 label,
                 at,
                 attached_to,
+                altitude,
+                parent,
             } => {
                 self.allocated.node = self.allocated.node.max(id.0);
                 self.nodes.insert(
@@ -118,9 +131,21 @@ impl Board {
                         label,
                         at,
                         attached_to,
+                        altitude,
+                        parent,
                         by,
                     },
                 );
+            }
+            Change::NodeNested {
+                id,
+                altitude,
+                parent,
+            } => {
+                if let Some(node) = self.nodes.get_mut(&id) {
+                    node.altitude = altitude;
+                    node.parent = parent;
+                }
             }
             Change::NodeMoved { id, to } => {
                 if let Some(node) = self.nodes.get_mut(&id) {
@@ -201,6 +226,11 @@ impl Board {
         match id {
             ItemId::Node(id) => {
                 self.nodes.remove(&id);
+                for node in self.nodes.values_mut() {
+                    if node.parent == Some(id) {
+                        node.parent = None;
+                    }
+                }
                 self.edges.retain(|_, e| e.from != id && e.to != id);
                 for group in self.groups.values_mut() {
                     group.members.retain(|m| *m != id);
@@ -227,6 +257,31 @@ impl Board {
                 node.attached_to = None;
             }
         }
+    }
+
+    pub(crate) fn check_nesting(
+        &self,
+        id: NodeId,
+        altitude: Option<u8>,
+        parent: Option<NodeId>,
+    ) -> Result<(), Error> {
+        if let Some(altitude) = altitude
+            && !(1..=4).contains(&altitude)
+        {
+            return Err(Error::InvalidAltitude(altitude));
+        }
+        let mut next = parent;
+        while let Some(ancestor) = next {
+            if ancestor == id {
+                return Err(Error::NestingLoop(id, parent.unwrap_or(id)));
+            }
+            let node = self
+                .nodes
+                .get(&ancestor)
+                .ok_or(Error::NotFound(ancestor.into()))?;
+            next = node.parent;
+        }
+        Ok(())
     }
 
     fn check_fresh(&self, id: ItemId) -> Result<(), Error> {

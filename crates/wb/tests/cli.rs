@@ -282,6 +282,8 @@ fn the_agent_hears_about_changes_the_human_made_while_it_worked() {
             kind: NodeKind::Component,
             label: "Retry worker".into(),
             placement: Placement::Below(ItemId::Node(NodeId(1))),
+            altitude: None,
+            parent: None,
         },
     );
     wb.run(&["add", "service", "B"]);
@@ -366,6 +368,33 @@ fn waiting_again_after_a_timeout_picks_up_a_handover_that_came_in_meanwhile() {
     wb.transcript.clear();
 
     wb.run(&["wait", "--timeout", "1"]);
+
+    insta::assert_snapshot!(wb.transcript);
+}
+
+#[test]
+fn the_agent_can_sketch_high_up_then_add_detail_below() {
+    let mut wb = Session::new();
+    wb.run(&["new", "Altitude"]);
+    wb.transcript.clear();
+
+    wb.run(&["add", "service", "Checkout", "--altitude", "1"]);
+    wb.run(&[
+        "add",
+        "service",
+        "Billing",
+        "--altitude",
+        "1",
+        "--right-of",
+        "n1",
+    ]);
+    wb.run(&["add", "component", "CreatePayment", "--in", "n1"]);
+    wb.run(&["connect", "n3", "n2", "charges"]);
+    wb.run(&["add", "component", "Retry", "--in", "n1"]);
+    wb.run(&["level", "n4", "3", "--in", "n3"]);
+    wb.run(&["look", "--altitude", "1"]);
+    wb.run(&["look"]);
+    wb.run(&["level", "n4", "9"]);
 
     insta::assert_snapshot!(wb.transcript);
 }

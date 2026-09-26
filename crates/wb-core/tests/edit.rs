@@ -21,6 +21,8 @@ fn add(board: &mut Board, label: &str, placement: Placement) -> NodeId {
             kind: NodeKind::Service,
             label: label.into(),
             placement,
+            altitude: None,
+            parent: None,
         },
     );
     board.nodes.values().find(|n| n.label == label).unwrap().id
@@ -132,6 +134,8 @@ fn placing_relative_to_a_missing_item_is_an_error() {
         kind: NodeKind::Db,
         label: "Orders".into(),
         placement: Placement::RightOf(ItemId::Node(NodeId(7))),
+        altitude: None,
+        parent: None,
     });
 
     assert_eq!(
@@ -172,6 +176,8 @@ fn adding_the_same_node_twice_is_a_no_op_that_names_the_existing_one() {
             kind: NodeKind::Service,
             label: "Orders DB".into(),
             placement: Placement::Auto,
+            altitude: None,
+            parent: None,
         })
         .unwrap();
 

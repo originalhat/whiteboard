@@ -114,6 +114,10 @@ describe("humanOps", () => {
     expect(ops([...scene, { id: "a1", type: "freedraw", x: 0, y: 0, isDeleted: true }])).toEqual([{ op: "delete", id: "a1" }]);
   });
 
+  it("leaves a parent's frame alone, since its size comes from its children", () => {
+    expect(humanOps(edit("n1", { x: -24, y: -52 }), board, new Set(), 1, new Set(["n1"]))).toEqual([]);
+  });
+
   it("doesn't resend an edit that is still on its way", () => {
     const moved = edit("n1", { x: 480, y: 160 });
     const [first] = humanOps(moved, board, new Set());

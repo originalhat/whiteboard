@@ -37,6 +37,7 @@ export function humanOps(
   board: Board,
   pending: Set<string>,
   zoom = 1,
+  containers: Set<string> = new Set(),
 ): Op[] {
   const boundText = new Map<string, string>();
   for (const e of elements) {
@@ -45,6 +46,7 @@ export function humanOps(
   const ops: Op[] = [];
   for (const e of elements) {
     const node = board.nodes[e.id];
+    if (node && containers.has(e.id)) continue;
     if (node) {
       if (e.isDeleted) {
         ops.push({ op: "delete", client_id: `delete:${e.id}`, id: e.id });

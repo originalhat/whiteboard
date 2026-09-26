@@ -12,6 +12,8 @@ export interface BoardNode {
   label: string;
   at: Point;
   attached_to?: string;
+  altitude?: number;
+  parent?: string;
   by: Actor;
 }
 
@@ -97,4 +99,5 @@ export type Op =
   | { op: "pass_turn"; client_id: string; message?: string; pointing_at?: string[] };
 
 export const NODE_WIDTH = 200;
+export const LOWEST_ALTITUDE = 4;
 export const NODE_HEIGHT = 80;

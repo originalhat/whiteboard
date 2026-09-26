@@ -37,7 +37,11 @@ enum Command {
     /// Make a board active, by id or by source, and print its canvas address
     Open { board: Option<String> },
     /// Show the board as compact text
-    Look,
+    Look {
+        /// Only what shows at this altitude: 1 is the whole system, 4 is code
+        #[arg(long)]
+        altitude: Option<u8>,
+    },
     /// Add a node
     Add {
         /// service, db, queue, actor, external, component or note
@@ -45,6 +49,21 @@ enum Command {
         label: String,
         #[command(flatten)]
         place: Place,
+        /// How much detail: 1 is the whole system, 4 is code
+        #[arg(long)]
+        altitude: Option<u8>,
+        /// A node this one is a part of; defaults to one level below it
+        #[arg(long = "in", value_name = "ID")]
+        parent: Option<ItemId>,
+        #[command(flatten)]
+        why: Why,
+    },
+    /// Set a node's altitude, optionally inside a parent node
+    Level {
+        id: ItemId,
+        altitude: u8,
+        #[arg(long = "in", value_name = "ID")]
+        parent: Option<ItemId>,
         #[command(flatten)]
         why: Why,
     },
@@ -206,17 +225,34 @@ fn run(cli: Cli) -> Result<String, Failure> {
         Command::New { title, source } => app.new_board(&title, source.as_deref()),
         Command::Boards => app.boards(),
         Command::Open { board } => app.open_board(board.as_deref()),
-        Command::Look => app.look(),
+        Command::Look { altitude } => app.look(altitude),
         Command::Add {
             kind,
             label,
             place,
+            altitude,
+            parent,
             why,
         } => app.edit(
             wb_core::Intent::Add {
                 kind,
                 label,
                 placement: place.placement().unwrap_or(Placement::Auto),
+                altitude,
+                parent,
+            },
+            why.why,
+        ),
+        Command::Level {
+            id,
+            altitude,
+            parent,
+            why,
+        } => app.edit(
+            wb_core::Intent::Level {
+                id,
+                altitude,
+                parent,
             },
             why.why,
         ),

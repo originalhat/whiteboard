@@ -145,11 +145,20 @@ impl App {
         ))
     }
 
-    pub fn look(&mut self) -> Output {
+    pub fn look(&mut self, altitude: Option<u8>) -> Output {
         let id = self.board_id()?;
+        if let Some(altitude) = altitude
+            && !(1..=wb_core::view::LOWEST).contains(&altitude)
+        {
+            return Err(wb_core::Error::InvalidAltitude(altitude).into());
+        }
         self.mark_seen(&id)?;
         let (meta, board) = (self.store.board(&id)?, self.store.load(&id)?);
-        let mut out = header(&meta, &board) + &look::board(&board);
+        let mut out = header(&meta, &board);
+        if let Some(altitude) = altitude {
+            out += &format!("altitude: {altitude} of {}\n", wb_core::view::LOWEST);
+        }
+        out += &look::board_at(&board, altitude.unwrap_or(wb_core::view::LOWEST));
         if board.is_empty() {
             out += &help_block(&["wb add <kind> \"<label>\"", "wb note \"<text>\""]);
         }

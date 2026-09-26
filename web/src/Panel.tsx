@@ -8,11 +8,26 @@ interface Props {
   online: boolean;
   error: string | null;
   recentCount: number;
+  altitude: number;
+  onAltitude(altitude: number): void;
   onDismissError(): void;
   onHandOver(message: string | undefined): Promise<boolean>;
 }
 
-export function Panel({ snapshot, messages, presence, online, error, recentCount, onDismissError, onHandOver }: Props) {
+const ALTITUDES = ["", "Whole system", "Containers", "Components", "Code"];
+
+export function Panel({
+  snapshot,
+  messages,
+  presence,
+  online,
+  error,
+  recentCount,
+  altitude,
+  onAltitude,
+  onDismissError,
+  onHandOver,
+}: Props) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const list = useRef<HTMLOListElement>(null);
@@ -57,6 +72,19 @@ export function Panel({ snapshot, messages, presence, online, error, recentCount
         {board && <span className="turn-number">turn {board.turn}</span>}
       </div>
       {!yours && presence && <div className="status">{presence.text}</div>}
+      {board && Object.values(board.nodes).some((n) => n.altitude !== undefined) && (
+        <label className="altitude">
+          <span>Altitude</span>
+          <input
+            type="range"
+            min={1}
+            max={ALTITUDES.length - 1}
+            value={altitude}
+            onChange={(e) => onAltitude(Number(e.target.value))}
+          />
+          <span className="altitude-name">{ALTITUDES[altitude]}</span>
+        </label>
+      )}
       {!online && <div className="offline">Reconnecting…</div>}
       {recentCount > 0 && (
         <div className="legend">

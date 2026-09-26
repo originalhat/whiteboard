@@ -69,6 +69,31 @@ describe("toSkeletons", () => {
     expect(find("n2").strokeWidth).toBeUndefined();
   });
 
+  it("at a high altitude, hides detail and rolls its edges up", () => {
+    const leveled = board({
+      nodes: {
+        n1: { id: "n1", kind: "service", label: "Checkout", at: { x: 0, y: 0 }, altitude: 1, by: "agent" },
+        n2: { id: "n2", kind: "service", label: "Billing", at: { x: 680, y: 0 }, altitude: 1, by: "agent" },
+        n3: { id: "n3", kind: "component", label: "CreatePayment", at: { x: 0, y: 220 }, altitude: 2, parent: "n1", by: "agent" },
+      },
+      edges: { e1: { id: "e1", from: "n3", to: "n2", label: "charges", by: "agent" } },
+    });
+
+    const high = toSkeletons(leveled, new Set(), 1);
+    const detail = toSkeletons(leveled, new Set(), 4);
+    const find = (list: typeof high, id: string) => list.find((s) => s.id === id) as any;
+
+    expect(find(high, "n3")).toBeUndefined();
+    expect(find(high, "e1")).toBeUndefined();
+    expect(find(high, "r~n1~n2")).toMatchObject({ type: "arrow", strokeStyle: "dashed", locked: true, label: { text: "charges" } });
+    expect(find(detail, "n1")).toMatchObject({ type: "rectangle", locked: true });
+    const frame = find(detail, "n1");
+    expect(frame.y).toBeLessThan(220);
+    expect(frame.y + frame.height).toBeGreaterThan(220 + NODE_HEIGHT);
+    expect(find(detail, "n1~label")).toMatchObject({ type: "text", text: "Checkout" });
+    expect(find(detail, "e1")).toBeDefined();
+  });
+
   it("colours the agent's marks differently from the human's", () => {
     expect(byId("n1").strokeColor).toBe(AGENT_COLOR);
     expect(byId("n2").strokeColor).toBe(HUMAN_COLOR);

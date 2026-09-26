@@ -233,3 +233,18 @@ kbd {
   background: #e7f5ff;
   border: 2px solid #1971c2;
 }
+
+.altitude {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  font-size: 13px;
+  color: #495057;
+}
+
+.altitude-name {
+  grid-column: 2;
+  font-size: 12px;
+  color: #868e96;
+}

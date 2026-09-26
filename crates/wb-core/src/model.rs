@@ -99,6 +99,10 @@ pub struct Node {
     pub at: Point,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attached_to: Option<ItemId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub altitude: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<NodeId>,
     pub by: Actor,
 }
 

@@ -35,6 +35,20 @@ pub enum Change {
         at: Point,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         attached_to: Option<ItemId>,
+        /// How much detail the node is: 1 is the whole system, 4 is code. Absent shows at every level.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        altitude: Option<u8>,
+        /// The node this one is a part of, which it expands out of at lower altitudes.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent: Option<NodeId>,
+    },
+    #[serde(rename = "node.nested")]
+    NodeNested {
+        id: NodeId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        altitude: Option<u8>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent: Option<NodeId>,
     },
     #[serde(rename = "node.moved")]
     NodeMoved { id: NodeId, to: Point },
@@ -81,7 +95,9 @@ impl Change {
     /// The item this change adds or alters, if any.
     pub fn item(&self) -> Option<ItemId> {
         match self {
-            Change::NodeAdded { id, .. } | Change::NodeMoved { id, .. } => Some((*id).into()),
+            Change::NodeAdded { id, .. }
+            | Change::NodeMoved { id, .. }
+            | Change::NodeNested { id, .. } => Some((*id).into()),
             Change::EdgeAdded { id, .. } => Some((*id).into()),
             Change::GroupAdded { id, .. } => Some((*id).into()),
             Change::AnnotationAdded { id, .. } => Some((*id).into()),

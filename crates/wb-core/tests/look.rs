@@ -17,6 +17,8 @@ fn node(board: &mut Board, actor: Actor, n: u32, kind: NodeKind, label: &str) {
             label: label.into(),
             at: Point::new(n as f64 * 240.0, 0.0),
             attached_to: None,
+            altitude: None,
+            parent: None,
         },
     );
 }
@@ -70,6 +72,8 @@ fn sample() -> Board {
             label: "Sync or \"async\"?".into(),
             at: Point::new(0.0, 160.0),
             attached_to: Some(ItemId::Node(NodeId(1))),
+            altitude: None,
+            parent: None,
         },
     );
     commit(
@@ -154,6 +158,8 @@ fn describe_turns_each_change_into_a_short_phrase() {
                 label: "Order Service".into(),
                 at: Point::new(0.0, 0.0),
                 attached_to: None,
+                altitude: None,
+                parent: None,
             },
             "added service n1 \"Order Service\"",
         ),
@@ -164,6 +170,8 @@ fn describe_turns_each_change_into_a_short_phrase() {
                 label: "why?".into(),
                 at: Point::new(0.0, 0.0),
                 attached_to: Some(ItemId::Node(NodeId(1))),
+                altitude: None,
+                parent: None,
             },
             "added note n4 \"why?\" on n1",
         ),

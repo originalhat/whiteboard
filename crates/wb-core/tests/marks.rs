@@ -14,6 +14,8 @@ fn board() -> Board {
             label: format!("n{n}"),
             at: Point::new(x, y),
             attached_to: None,
+            altitude: None,
+            parent: None,
         };
         board.commit(Draft::new(Actor::Agent, change), 0).unwrap();
     }

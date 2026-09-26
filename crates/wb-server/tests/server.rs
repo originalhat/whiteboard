@@ -44,6 +44,8 @@ fn agent_adds(db: &std::path::Path, n: u32, label: &str) {
         label: label.into(),
         at: Point::new(0.0, 0.0),
         attached_to: None,
+        altitude: None,
+        parent: None,
     };
     store
         .append("b1", Draft::new(Actor::Agent, change), 0)

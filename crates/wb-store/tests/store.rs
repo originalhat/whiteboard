@@ -12,6 +12,8 @@ fn node(n: u32, label: &str) -> Draft {
             label: label.into(),
             at: Point::new(n as f64 * 240.0, 0.0),
             attached_to: None,
+            altitude: None,
+            parent: None,
         },
     )
 }

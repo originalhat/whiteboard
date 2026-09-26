@@ -1,4 +1,12 @@
-import { type Board, type BoardAnnotation, type BoardNode, NODE_HEIGHT, NODE_WIDTH } from "./model";
+import {
+  type Board,
+  type BoardAnnotation,
+  type BoardNode,
+  LOWEST_ALTITUDE,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+} from "./model";
+import { viewAt } from "./view";
 
 export const AGENT_COLOR = "#1971c2";
 export const HUMAN_COLOR = "#1e1e1e";
@@ -14,20 +22,54 @@ const EDGE_FONT_SIZE = 14;
 export type Skeleton = { id: string; type: string } & Record<string, unknown>;
 
 /** The board as Excalidraw element skeletons. Ids match the board's, so edits map straight back. */
-export function toSkeletons(board: Board, recent: Set<string> = new Set()): Skeleton[] {
-  const nodes = Object.values(board.nodes);
+export function toSkeletons(
+  board: Board,
+  recent: Set<string> = new Set(),
+  altitude: number = LOWEST_ALTITUDE,
+): Skeleton[] {
+  const view = viewAt(board, altitude);
+  const nodes = Object.values(board.nodes).filter(
+    (n) => view.visible.has(n.id) && (!n.attached_to || !board.nodes[n.attached_to] || view.visible.has(n.attached_to)),
+  );
+  const rects = new Map<string, Rect>();
+  const rectOf = (id: string): Rect => {
+    const known = rects.get(id);
+    if (known) return known;
+    const children = nodes.filter((n) => n.parent === id).map((n) => rectOf(n.id));
+    const rect = view.containers.has(id) ? frameAround(children) : nodeRect(board.nodes[id].at);
+    rects.set(id, rect);
+    return rect;
+  };
+  const depth = (id: string): number => (board.nodes[id]?.parent ? 1 + depth(board.nodes[id].parent as string) : 0);
+  const containers = [...view.containers].sort((a, b) => depth(a) - depth(b));
   const skeletons: Skeleton[] = [
-    ...Object.values(board.groups).flatMap((group) => groupFrame(board, group.id)),
-    ...nodes.map(shape),
-    ...Object.values(board.edges).map((edge) => {
-      return {
+    ...Object.values(board.groups).flatMap((group) => groupFrame(board, group.id, view.visible)),
+    ...containers.flatMap((id) => containerFrame(board.nodes[id], rectOf(id))),
+    ...nodes.filter((n) => !view.containers.has(n.id)).map(shape),
+    ...Object.values(board.edges)
+      .filter((edge) => view.visible.has(edge.from) && view.visible.has(edge.to))
+      .map((edge) => ({
         id: edge.id,
         type: "arrow",
-        ...connector(nodeRect(board.nodes[edge.from].at), nodeRect(board.nodes[edge.to].at)),
+        ...connector(rectOf(edge.from), rectOf(edge.to)),
         strokeColor: colorOf(edge.by),
         start: { id: edge.from },
         end: { id: edge.to },
         ...(edge.label ? { label: { text: edge.label, fontSize: EDGE_FONT_SIZE } } : {}),
+      })),
+    ...view.rollups.map((rollup) => {
+      const labels = rollup.via.map((id) => board.edges[id]?.label).filter(Boolean);
+      const text = rollup.via.length === 1 ? labels[0] : `${rollup.via.length} edges`;
+      return {
+        id: `r~${rollup.from}~${rollup.to}`,
+        type: "arrow",
+        ...connector(rectOf(rollup.from), rectOf(rollup.to)),
+        strokeColor: QUIET_COLOR,
+        strokeStyle: "dashed",
+        locked: true,
+        start: { id: rollup.from },
+        end: { id: rollup.to },
+        ...(text ? { label: { text, fontSize: EDGE_FONT_SIZE } } : {}),
       };
     }),
     ...nodes.flatMap((node) => noteLink(board, node)),
@@ -120,9 +162,27 @@ function shape(node: BoardNode): Skeleton {
   }
 }
 
-function groupFrame(board: Board, id: string): Skeleton[] {
+/** A parent seen from below: a frame around its children, named at the top. */
+function containerFrame(node: BoardNode, rect: Rect): Skeleton[] {
+  const color = colorOf(node.by);
+  return [
+    { id: node.id, type: "rectangle", ...rect, strokeColor: color, backgroundColor: "#f8f9fa", fillStyle: "solid", roundness: { type: 3 }, locked: true },
+    { id: `${node.id}~label`, type: "text", x: rect.x + 10, y: rect.y + 8, text: node.label, fontSize: NODE_FONT_SIZE, strokeColor: color, locked: true },
+  ];
+}
+
+function frameAround(children: Rect[]): Rect {
+  if (children.length === 0) return { x: 0, y: 0, width: NODE_WIDTH, height: NODE_HEIGHT };
+  const x = Math.min(...children.map((r) => r.x)) - GROUP_PADDING;
+  const y = Math.min(...children.map((r) => r.y)) - GROUP_PADDING - GROUP_LABEL_SPACE;
+  const right = Math.max(...children.map((r) => r.x + r.width)) + GROUP_PADDING;
+  const bottom = Math.max(...children.map((r) => r.y + r.height)) + GROUP_PADDING;
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+function groupFrame(board: Board, id: string, visible: Set<string>): Skeleton[] {
   const group = board.groups[id];
-  const members = group.members.map((m) => board.nodes[m]).filter(Boolean);
+  const members = group.members.filter((m) => visible.has(m)).map((m) => board.nodes[m]).filter(Boolean);
   if (members.length === 0) return [];
   const xs = members.map((n) => n.at.x);
   const ys = members.map((n) => n.at.y);

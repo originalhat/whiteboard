@@ -10,6 +10,8 @@ fn node(n: u32, label: &str) -> Change {
         label: label.into(),
         at: Point::new(0.0, n as f64 * 200.0),
         attached_to: None,
+        altitude: None,
+        parent: None,
     }
 }
 
@@ -109,6 +111,8 @@ fn deleting_an_item_detaches_notes_about_it() {
                 label: "why?".into(),
                 at: Point::new(0.0, 0.0),
                 attached_to: Some(ItemId::Node(NodeId(1))),
+                altitude: None,
+                parent: None,
             },
         ),
         (

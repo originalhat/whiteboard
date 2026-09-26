@@ -3,9 +3,10 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { type Location, send } from "./api";
 import { type CanvasElement, humanOps } from "./diff";
-import type { Board, Op, WbEvent } from "./model";
+import { type Board, LOWEST_ALTITUDE, type Op, type WbEvent } from "./model";
 import { afterEvent, type Recent } from "./recent";
 import { toSkeletons } from "./scene";
+import { viewAt } from "./view";
 
 const FLASH_COLOR = "#f08c00";
 const FLASH_MS = 900;
@@ -35,6 +36,7 @@ export class CanvasSync {
   private zoom = 1;
   private pointingAt: string[] = [];
   private recent: Recent = { turn: 0, items: new Set() };
+  private altitude = LOWEST_ALTITUDE;
 
   constructor(
     private api: ExcalidrawImperativeAPI,
@@ -59,6 +61,11 @@ export class CanvasSync {
     this.render();
   }
 
+  setAltitude(altitude: number) {
+    this.altitude = altitude;
+    this.render();
+  }
+
   comment(id: string, text: string) {
     void this.dispatch({ op: "relabel", client_id: `comment:${id}`, id, label: text });
   }
@@ -77,7 +84,8 @@ export class CanvasSync {
     if (this.interacting || !this.board) return;
     this.expirePending();
     const canvas = elements as unknown as CanvasElement[];
-    for (const op of humanOps(canvas, this.board, new Set(this.pending.keys()), this.zoom)) {
+    const { containers } = viewAt(this.board, this.altitude);
+    for (const op of humanOps(canvas, this.board, new Set(this.pending.keys()), this.zoom, containers)) {
       void this.dispatch(op);
     }
     if (this.queued && this.pending.size === 0) this.render();
@@ -111,7 +119,7 @@ export class CanvasSync {
     }
     this.queued = false;
     const now = Date.now();
-    const skeletons = toSkeletons(board, this.recent.items).map((s) =>
+    const skeletons = toSkeletons(board, this.recent.items, this.altitude).map((s) =>
       (this.flashUntil.get(s.id) ?? 0) > now ? { ...s, strokeColor: FLASH_COLOR, strokeWidth: 3 } : s,
     );
     const modelElements = convertToExcalidrawElements(skeletons as never, { regenerateIds: false }).map(
