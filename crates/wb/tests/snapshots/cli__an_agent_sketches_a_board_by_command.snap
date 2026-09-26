@@ -1,0 +1,102 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb
+bin: [bin]
+description: Shared whiteboard where you and a human design together
+board: none
+help[2]:
+  wb new "<title>" [--source <ticket>]
+  wb boards
+[exit 0]
+
+$ wb new "Checkout redesign" --source LIN-123
+created: b1 "Checkout redesign" (source LIN-123)
+active: b1
+help[2]:
+  wb add <kind> "<label>"
+  wb note "<text>"
+[exit 0]
+
+$ wb add service "Order Service"
+added service n1 "Order Service"
+help[2]:
+  wb connect n1 <id> "<label>"
+  wb note "<text>" --on n1
+[exit 0]
+
+$ wb add db "Orders DB" --right-of n1 --why "orders are persisted"
+added db n2 "Orders DB" right of n1
+help[2]:
+  wb connect n2 <id> "<label>"
+  wb note "<text>" --on n2
+[exit 0]
+
+$ wb add queue "Order Events" --below n1
+added queue n3 "Order Events" below n1
+help[2]:
+  wb connect n3 <id> "<label>"
+  wb note "<text>" --on n3
+[exit 0]
+
+$ wb connect n1 n2 writes
+connected e1 n1 -> n2 "writes"
+[exit 0]
+
+$ wb connect n1 n3
+connected e2 n1 -> n3
+[exit 0]
+
+$ wb note "Sync or async?" --on e2
+added note n4 "Sync or async?" on e2
+[exit 0]
+
+$ wb group Orders n1 n2
+grouped g1 "Orders": n1 n2
+[exit 0]
+
+$ wb say "Here's how checkout works today. What's wrong with it?"
+said "Here's how checkout works today. What's wrong with it?"
+[exit 0]
+
+$ wb look
+board: b1 "Checkout redesign" (source LIN-123)
+turn: 1, agent's turn
+counts: 3 nodes, 2 edges, 1 group, 1 note, 0 annotations
+nodes[3]{id,kind,label,by}:
+  n1,service,Order Service,agent
+  n2,db,Orders DB,agent
+  n3,queue,Order Events,agent
+edges[2]{id,from,to,label}:
+  e1,n1,n2,writes
+  e2,n1,n3,""
+groups[1]{id,label,members}:
+  g1,Orders,n1 n2
+notes[1]{id,on,text,by}:
+  n4,e2,Sync or async?,agent
+[exit 0]
+
+$ wb log
+events[8] (1-8 of 8):
+  1 t1 agent: added service n1 "Order Service"
+  2 t1 agent: added db n2 "Orders DB" (why: orders are persisted)
+  3 t1 agent: added queue n3 "Order Events"
+  4 t1 agent: connected e1 n1 -> n2 "writes"
+  5 t1 agent: connected e2 n1 -> n3
+  6 t1 agent: added note n4 "Sync or async?" on e2
+  7 t1 agent: grouped g1 "Orders": n1 n2
+  8 t1 agent: said "Here's how checkout works today. What's wrong with it?"
+[exit 0]
+
+$ wb
+bin: [bin]
+description: Shared whiteboard where you and a human design together
+board: b1 "Checkout redesign" (source LIN-123)
+turn: 1, agent's turn
+counts: 3 nodes, 2 edges, 1 group, 1 note, 0 annotations
+last: 8 t1 agent: said "Here's how checkout works today. What's wrong with it?"
+help[2]:
+  wb look
+  wb add <kind> "<label>" [--right-of <id>]
+[exit 0]

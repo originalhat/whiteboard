@@ -1,0 +1,27 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb add service A
+unchanged: n1 "A" already exists
+[exit 0]
+
+$ wb connect n1 n2
+unchanged: e1 already exists
+[exit 0]
+
+$ wb relabel n1 A
+unchanged: n1 is already labeled "A"
+[exit 0]
+
+$ wb move n2 --right-of n1
+unchanged: n2 is already right of n1
+[exit 0]
+
+$ wb delete e1
+deleted e1
+[exit 0]
+
+$ wb delete e1
+unchanged: e1 was already deleted
+[exit 0]

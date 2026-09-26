@@ -1,0 +1,30 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb move n3 --below n1
+moved n3 below n1
+[exit 0]
+
+$ wb relabel n2 Billing
+relabeled n2 "Billing"
+[exit 0]
+
+$ wb relabel e2 charges
+relabeled e2 "charges"
+[exit 0]
+
+$ wb delete n2
+deleted n2 "Billing" (also removed e1 e2; detached note n4)
+[exit 0]
+
+$ wb look
+board: b1 "Edits"
+turn: 1, agent's turn
+counts: 2 nodes, 0 edges, 0 groups, 1 note, 0 annotations
+nodes[2]{id,kind,label,by}:
+  n1,service,A,agent
+  n3,service,C,agent
+notes[1]{id,on,text,by}:
+  n4,"",why B?,agent
+[exit 0]

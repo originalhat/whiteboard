@@ -1,0 +1,32 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb export -o checkout.wb.jsonl
+exported: b1 "Checkout" (source LIN-123) to checkout.wb.jsonl (4 lines)
+[exit 0]
+
+$ wb import checkout.wb.jsonl
+imported: b2 "Checkout" (source LIN-123), 3 events
+help[1]:
+  wb open b2
+[exit 0]
+
+$ wb open b2
+active: b2 "Checkout" (source LIN-123)
+turn: 1, agent's turn
+counts: 2 nodes, 1 edge, 0 groups, 0 notes, 0 annotations
+help[1]:
+  wb look
+[exit 0]
+
+$ wb look
+board: b2 "Checkout" (source LIN-123)
+turn: 1, agent's turn
+counts: 2 nodes, 1 edge, 0 groups, 0 notes, 0 annotations
+nodes[2]{id,kind,label,by}:
+  n1,service,A,agent
+  n2,db,B,agent
+edges[1]{id,from,to,label}:
+  e1,n1,n2,reads
+[exit 0]

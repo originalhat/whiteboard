@@ -1,0 +1,497 @@
+{
+  "$defs": {
+    "Actor": {
+      "enum": [
+        "human",
+        "agent"
+      ],
+      "type": "string"
+    },
+    "AnnotationId": {
+      "pattern": "^a[0-9]+$",
+      "type": "string"
+    },
+    "BoardMeta": {
+      "properties": {
+        "created_at": {
+          "description": "Unix time in milliseconds.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "description": "Where the board came from: a ticket id or URL. Absent for a freeform idea.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "EdgeId": {
+      "pattern": "^e[0-9]+$",
+      "type": "string"
+    },
+    "Event": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "node.added",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "at": {
+                  "$ref": "#/$defs/Point"
+                },
+                "attached_to": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/ItemId"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "id": {
+                  "$ref": "#/$defs/NodeId"
+                },
+                "kind": {
+                  "$ref": "#/$defs/NodeKind"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "label",
+                "at"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "node.moved",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/NodeId"
+                },
+                "to": {
+                  "$ref": "#/$defs/Point"
+                }
+              },
+              "required": [
+                "id",
+                "to"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "edge.added",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "from": {
+                  "$ref": "#/$defs/NodeId"
+                },
+                "id": {
+                  "$ref": "#/$defs/EdgeId"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "to": {
+                  "$ref": "#/$defs/NodeId"
+                }
+              },
+              "required": [
+                "id",
+                "from",
+                "to"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "group.added",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/GroupId"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "members": {
+                  "items": {
+                    "$ref": "#/$defs/NodeId"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "members"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "annotation.added",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/AnnotationId"
+                },
+                "stroke": {
+                  "items": {
+                    "$ref": "#/$defs/StrokePoint"
+                  },
+                  "type": "array"
+                },
+                "targets": {
+                  "items": {
+                    "$ref": "#/$defs/Target"
+                  },
+                  "type": "array"
+                },
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "zoom": {
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "stroke",
+                "zoom",
+                "targets"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "item.relabeled",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/ItemId"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "item.deleted",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/ItemId"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "message.sent",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "turn.passed",
+              "type": "string"
+            },
+            "payload": {
+              "properties": {
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        }
+      ],
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "at": {
+          "description": "Unix time in milliseconds.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "client_id": {
+          "description": "Client-generated id so a retried send is not applied twice.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "device": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seq": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "turn": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "why": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "seq",
+        "at",
+        "actor",
+        "turn"
+      ],
+      "type": "object"
+    },
+    "GroupId": {
+      "pattern": "^g[0-9]+$",
+      "type": "string"
+    },
+    "Header": {
+      "description": "The first line of an exported board.",
+      "properties": {
+        "board": {
+          "$ref": "#/$defs/BoardMeta"
+        },
+        "format": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "board"
+      ],
+      "type": "object"
+    },
+    "ItemId": {
+      "pattern": "^[nega][0-9]+$",
+      "type": "string"
+    },
+    "NodeId": {
+      "pattern": "^n[0-9]+$",
+      "type": "string"
+    },
+    "NodeKind": {
+      "enum": [
+        "service",
+        "db",
+        "queue",
+        "actor",
+        "external",
+        "component",
+        "note"
+      ],
+      "type": "string"
+    },
+    "Point": {
+      "description": "A position in board units. Never screen pixels.",
+      "properties": {
+        "x": {
+          "format": "double",
+          "type": "number"
+        },
+        "y": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "Relation": {
+      "enum": [
+        "encloses",
+        "connects",
+        "strikes"
+      ],
+      "type": "string"
+    },
+    "StrokePoint": {
+      "description": "[x, y, t, pressure?] in board units; t is ms since the stroke started",
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 4,
+      "minItems": 3,
+      "type": "array"
+    },
+    "Target": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ItemId"
+          },
+          "type": "array"
+        },
+        "relation": {
+          "$ref": "#/$defs/Relation"
+        }
+      },
+      "required": [
+        "relation",
+        "items"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/Header"
+    },
+    {
+      "$ref": "#/$defs/Event"
+    }
+  ],
+  "description": "One line of an exported board: the header first, then every event in order.",
+  "title": "whiteboard export line (wb/0.1)"
+}

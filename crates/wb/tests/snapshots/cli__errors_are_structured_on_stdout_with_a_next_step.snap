@@ -1,0 +1,66 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb look
+error: no active board
+help[2]:
+  wb new "<title>" [--source <ticket>]
+  wb boards
+[exit 1]
+
+$ wb new Errors
+created: b1 "Errors"
+active: b1
+help[2]:
+  wb add <kind> "<label>"
+  wb note "<text>"
+[exit 0]
+
+$ wb add service A
+added service n1 "A"
+help[2]:
+  wb connect n1 <id> "<label>"
+  wb note "<text>" --on n1
+[exit 0]
+
+$ wb connect n1 n9
+error: n9 not found
+help[1]:
+  wb look
+[exit 1]
+
+$ wb connect n1 x9
+error: invalid value 'x9' for '<TO>': x9 is not a valid id
+
+For more information, try '--help'.
+[exit 2]
+
+$ wb add widget B
+error: invalid value 'widget' for '<KIND>': unknown kind "widget"; use one of service, db, queue, actor, external, component, note
+
+For more information, try '--help'.
+[exit 2]
+
+$ wb add service B --colour red
+error: unexpected argument '--colour' found
+
+  tip: to pass '--colour' as a value, use '-- --colour'
+
+Usage: wb add <KIND> <LABEL>
+
+For more information, try '--help'.
+[exit 2]
+
+$ wb move n1
+error: move needs a place
+help[2]:
+  wb move n1 --right-of <id>
+  wb move --help
+[exit 1]
+
+$ wb open b7
+error: board b7 not found
+help[1]:
+  wb boards
+[exit 1]

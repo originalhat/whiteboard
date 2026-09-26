@@ -1,0 +1,37 @@
+---
+source: crates/wb/tests/cli.rs
+expression: wb.transcript
+---
+$ wb new "Checkout again" --source LIN-123
+resumed: b1 "Checkout" (source LIN-123)
+turn: 1, agent's turn
+counts: 1 node, 0 edges, 0 groups, 0 notes, 0 annotations
+active: b1
+help[1]:
+  wb look
+[exit 0]
+
+$ wb open b2
+active: b2 "Something else"
+turn: 1, agent's turn
+counts: 0 nodes, 0 edges, 0 groups, 0 notes, 0 annotations
+help[1]:
+  wb look
+[exit 0]
+
+$ wb open LIN-123
+active: b1 "Checkout" (source LIN-123)
+turn: 1, agent's turn
+counts: 1 node, 0 edges, 0 groups, 0 notes, 0 annotations
+help[1]:
+  wb look
+[exit 0]
+
+$ wb boards
+boards[2]{id,title,source,events}:
+  b1,Checkout,LIN-123,1
+  b2,Something else,"",0
+active: b1
+help[1]:
+  wb open <id>
+[exit 0]
